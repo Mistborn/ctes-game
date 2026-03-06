@@ -143,6 +143,7 @@ class Renderer:
         self._was_paused_before_menu = False
         self._buttons = []
         self._menu_buttons = []
+        self._right_panel_scroll = 0
 
     # ------------------------------------------------------------------
     # Public: start screen — blocks until the player picks an option
