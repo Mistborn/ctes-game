@@ -126,6 +126,10 @@ class Renderer:
         # Accumulated real time for tick scheduling
         self._tick_accumulator: float = 0.0
 
+        # Right panel scroll state
+        self._right_panel_scroll: int = 0
+        self._right_panel_content_height: int = 0
+
     # ------------------------------------------------------------------
     # Public: start screen — blocks until the player picks an option
     # ------------------------------------------------------------------
@@ -243,6 +247,18 @@ class Renderer:
                     result = btn.handle_event(event)
                     if result is not None:
                         actions.append(result)
+
+            # Mouse wheel scrolls the right panel
+            if event.type == pygame.MOUSEWHEEL:
+                panel_x = C.WINDOW_WIDTH - C.RIGHT_PANEL_WIDTH
+                panel_rect = pygame.Rect(
+                    panel_x, 0, C.RIGHT_PANEL_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
+                )
+                if panel_rect.collidepoint(pygame.mouse.get_pos()):
+                    self._right_panel_scroll -= event.y * 30
+                    panel_height = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
+                    max_scroll = max(0, self._right_panel_content_height - panel_height)
+                    self._right_panel_scroll = max(0, min(self._right_panel_scroll, max_scroll))
 
         return actions
 
@@ -379,14 +395,15 @@ class Renderer:
 
     def _draw_right_panel(self, state: GameState) -> None:
         panel_x = C.WINDOW_WIDTH - C.RIGHT_PANEL_WIDTH
-        panel_rect = pygame.Rect(
-            panel_x, 0, C.RIGHT_PANEL_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
-        )
+        panel_height = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
+        panel_rect = pygame.Rect(panel_x, 0, C.RIGHT_PANEL_WIDTH, panel_height)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, panel_rect)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, panel_rect, width=1)
 
         x = panel_x + C.PANEL_PADDING
-        y = C.PANEL_PADDING
+        y = C.PANEL_PADDING - self._right_panel_scroll
+
+        self.screen.set_clip(panel_rect)
 
         self._blit("BUILDINGS", self.font_large, C.COLOR_TEXT_PRIMARY, x, y)
         y += C.LINE_HEIGHT_LARGE
@@ -417,6 +434,15 @@ class Renderer:
         for tech in C.RESEARCH_TECHS:
             y = self._draw_research_row(state, tech, x, y)
             y += C.BUILD_BTN_GAP
+
+        # Track total content height (y is already offset by scroll)
+        self._right_panel_content_height = y + self._right_panel_scroll
+
+        self.screen.set_clip(None)
+
+        # Draw scrollbar if content exceeds panel
+        if self._right_panel_content_height > panel_height:
+            self._draw_right_scrollbar(panel_x, panel_height)
 
     def _draw_building_row(self, state: GameState, building, x: int, y: int) -> int:
         btype   = building.building_type
@@ -768,6 +794,16 @@ class Renderer:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _draw_right_scrollbar(self, panel_x: int, panel_height: int) -> None:
+        scrollbar_w = 8
+        scrollbar_x = C.WINDOW_WIDTH - scrollbar_w - 3
+        track_rect = pygame.Rect(scrollbar_x, 4, scrollbar_w, panel_height - 8)
+        pygame.draw.rect(self.screen, C.COLOR_BTN_NORMAL, track_rect, border_radius=4)
+        thumb_h = max(20, int(panel_height * panel_height / self._right_panel_content_height))
+        thumb_y = int(self._right_panel_scroll / self._right_panel_content_height * panel_height)
+        thumb_rect = pygame.Rect(scrollbar_x, 4 + thumb_y, scrollbar_w, thumb_h)
+        pygame.draw.rect(self.screen, C.COLOR_TEXT_SECONDARY, thumb_rect, border_radius=4)
 
     def _blit(self, text: str, font: pygame.font.Font, color: tuple, x: int, y: int) -> None:
         self.screen.blit(font.render(text, True, color), (x, y))
