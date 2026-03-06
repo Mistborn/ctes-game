@@ -453,6 +453,109 @@ def _compile_strategy(code: str) -> Strategy:
     return fn  # type: ignore[return-value]
 
 
+def _build_system_prompt(checkpoint_ticks: int) -> str:
+    """
+    Build the LLM system prompt by introspecting the live codebase.
+    Enums, dataclass fields, action signatures, config constants, and research
+    techs are all read from the actual classes so the prompt stays in sync
+    automatically when the game code changes.
+    """
+    import dataclasses
+    from game.core.state import GameState
+    from game.core.entities import Building
+
+    # --- Enums ---
+    building_types = "  BuildingType." + " / ".join(bt.name for bt in BuildingType)
+    game_statuses = "  GameStatus." + " / ".join(gs.name for gs in GameStatus)
+
+    # --- Action signatures (derived from dataclass field names) ---
+    action_info = [
+        (ActionAssignWorker, "delta=+1 assign a worker, -1 to remove"),
+        (ActionBuildBuilding, "spend wood to build"),
+        (ActionResearchTech, "spend gold to unlock a tech"),
+    ]
+    action_lines = [
+        f"  {cls.__name__}({', '.join(f.name for f in dataclasses.fields(cls))})  — {note}"
+        for cls, note in action_info
+    ]
+
+    # --- GameState fields (skip internal bookkeeping) ---
+    _SKIP_STATE = {
+        "next_colonist_id", "next_building_id", "ticks_since_last_arrival_check",
+        "speed_multiplier", "paused",
+    }
+    state_field_lines = [
+        f"  state.{f.name}  ({f.type})"
+        for f in dataclasses.fields(GameState)
+        if f.name not in _SKIP_STATE
+    ]
+    state_field_lines += [
+        "  state.colonist_count  (int, property — total alive)",
+        "  state.idle_colonists  (int, property — available to assign)",
+    ]
+
+    # --- Building fields ---
+    building_fields = ", ".join(f"b.{f.name}" for f in dataclasses.fields(Building))
+
+    # --- Config constants: include numeric game-logic constants, skip UI layout ---
+    _UI_SUBSTRINGS = {
+        "COLOR", "FONT", "PANEL", "BAR", "BTN", "PIP", "HINT", "DIVIDER",
+        "SECTION_GAP", "LINE_HEIGHT", "PROGRESS", "RESOURCE_VALUE",
+        "RESOURCE_RATE", "RESOURCE_ROW", "BUILDING_ROW", "BUILDING_HINT",
+        "BUILDING_GAP", "WINDOW_WIDTH", "WINDOW_HEIGHT", "WINDOW_TITLE",
+        "TARGET_FPS", "SPEED_MULTIPLIERS", "SECONDS_PER_TICK",
+    }
+    config_lines = [
+        f"  config.{name} = {val}"
+        for name, val in sorted(vars(config).items())
+        if not name.startswith("_")
+        and name != "RESEARCH_TECHS"
+        and not any(ui in name for ui in _UI_SUBSTRINGS)
+        and isinstance(val, (int, float))
+        and not isinstance(val, bool)
+    ]
+
+    # --- Research techs (from config, not hardcoded) ---
+    research_lines = [
+        f"  ActionResearchTech('{t['tech_id']}')  — {t['gold_cost']} gold — {t['description']}"
+        for t in config.RESEARCH_TECHS
+    ]
+
+    return "\n".join([
+        'You are playing "Kingdoms of the Forgotten", a medieval colony builder.',
+        f"Each checkpoint write a Python strategy function for the next {checkpoint_ticks} ticks.",
+        "",
+        "=== IN SCOPE (do NOT use import statements) ===",
+        "  engine  config  BuildingType  GameStatus",
+        "  ActionAssignWorker  ActionBuildBuilding  ActionResearchTech",
+        building_types,
+        game_statuses,
+        "",
+        "=== ACTIONS ===",
+        *action_lines,
+        "",
+        "=== GAME STATE FIELDS ===",
+        *state_field_lines,
+        "",
+        "=== BUILDING FIELDS ===",
+        f"  {building_fields}",
+        "",
+        "=== RESEARCH TECHS ===",
+        *research_lines,
+        "  Pattern: if state.gold >= <cost> and '<tech_id>' not in state.researched_tech_ids:",
+        "               engine.apply_action(state, ActionResearchTech('<tech_id>'))",
+        "",
+        "=== CONFIG CONSTANTS (use these exact names — do not guess) ===",
+        *config_lines,
+        "",
+        "=== FUNCTION SIGNATURE ===",
+        "  def strategy(state) -> None:",
+        "      # called once per tick after engine.tick(); act via engine.apply_action()",
+        "",
+        f"Win: gold >= {config.WIN_GOLD_TARGET}. Lose: all colonists starve or tribute deadline missed.",
+    ])
+
+
 def _ask_llm_for_strategy(
     client,
     model: str,
@@ -464,39 +567,7 @@ def _ask_llm_for_strategy(
     """Ask the LLM to write a strategy function. Returns (code, rationale)."""
     import re
 
-    system_prompt = (
-        'You are playing "Kingdoms of the Forgotten", a medieval colony builder.\n'
-        f"Each checkpoint you write a Python function that drives the colony for the next {checkpoint_ticks} ticks.\n\n"
-        "Available names (already in scope — do NOT use import statements):\n"
-        "  engine           — call engine.apply_action(state, action) to act\n"
-        "  config           — balance constants (e.g. config.FARM_BUILD_COST_WOOD)\n"
-        "  ActionAssignWorker(building_id, delta)   — delta=+1 assign, -1 remove\n"
-        "  ActionBuildBuilding(building_type)       — spend wood to construct\n"
-        "  ActionResearchTech(tech_id)              — spend gold to research\n"
-        "  BuildingType.FARM / LUMBER_MILL / MARKET / QUARRY / SAWMILL\n"
-        "  GameStatus.PLAYING / WIN / LOSE\n\n"
-        "Function signature (must match exactly):\n"
-        "  def strategy(state) -> None:\n"
-        "      # called once per tick; act via engine.apply_action()\n\n"
-        f"Win: gold >= {config.WIN_GOLD_TARGET}. Lose: all colonists starve.\n"
-        f"Food consumption: {config.FOOD_PER_COLONIST_PER_TICK} per colonist per tick.\n"
-        "Market consumes wood (or planks) to produce gold.\n"
-        "Key state attributes: state.idle_colonists (int), state.colonist_count (int),\n"
-        "  state.food/wood/gold/stone/planks (float), state.researched_tech_ids (list[str])\n"
-        "Building attributes: b.id (int), b.building_type (BuildingType), b.workers_assigned (int)\n"
-        "  (NOT num_workers — use workers_assigned)\n"
-        "\nResearch — costs and tech_ids (DO NOT guess config constant names for costs):\n"
-        + "".join(
-            f"  ActionResearchTech('{t['tech_id']}')  — costs {t['gold_cost']} gold  — {t['description']}\n"
-            for t in config.RESEARCH_TECHS
-        )
-        + "Use: if state.gold >= <cost> and '<tech_id>' not in state.researched_tech_ids: engine.apply_action(state, ActionResearchTech('<tech_id>'))\n"
-        "\nUseful config constants (use these exact names):\n"
-        f"  FARM_BUILD_COST_WOOD={config.FARM_BUILD_COST_WOOD}  LUMBERMILL_BUILD_COST_WOOD={config.LUMBERMILL_BUILD_COST_WOOD}\n"
-        f"  MARKET_BUILD_COST_WOOD={config.MARKET_BUILD_COST_WOOD}  QUARRY_BUILD_COST_WOOD={config.QUARRY_BUILD_COST_WOOD}\n"
-        f"  FARM_MAX_WORKERS={config.FARM_MAX_WORKERS}  LUMBERMILL_MAX_WORKERS={config.LUMBERMILL_MAX_WORKERS}\n"
-        f"  MARKET_MAX_WORKERS={config.MARKET_MAX_WORKERS}  QUARRY_MAX_WORKERS={config.QUARRY_MAX_WORKERS}"
-    )
+    system_prompt = _build_system_prompt(checkpoint_ticks)
 
     if history:
         hist_parts = [
