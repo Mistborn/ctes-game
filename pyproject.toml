@@ -1,0 +1,8 @@
+[project]
+name = "ctes-game"
+version = "0.1.0"
+description = "Kingdoms of the Forgotten — medieval fantasy colony builder"
+requires-python = ">=3.11"
+dependencies = [
+    "pygame==2.6.1",
+]
