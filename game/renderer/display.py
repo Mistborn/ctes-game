@@ -102,8 +102,9 @@ class Renderer:
     def __init__(self) -> None:
         pygame.init()
         pygame.display.set_caption(C.WINDOW_TITLE)
-        self._fullscreen = False
-        self.screen = pygame.display.set_mode((C.WINDOW_WIDTH, C.WINDOW_HEIGHT))
+        self.screen = pygame.display.set_mode(
+            (C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.FULLSCREEN
+        )
         self.clock = pygame.time.Clock()
 
         # Fonts
@@ -154,9 +155,6 @@ class Renderer:
                     next_idx = (idx + 1) % len(C.SPEED_MULTIPLIERS)
                     actions.append(ActionSetSpeed(C.SPEED_MULTIPLIERS[next_idx]))
 
-                # F11 → toggle fullscreen
-                elif event.key == pygame.K_F11:
-                    self._toggle_fullscreen()
 
             # Escape menu buttons (always active when menu is open)
             if self._show_escape_menu:
@@ -178,14 +176,6 @@ class Renderer:
 
         return actions
 
-    def _toggle_fullscreen(self) -> None:
-        self._fullscreen = not self._fullscreen
-        if self._fullscreen:
-            self.screen = pygame.display.set_mode(
-                (C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.FULLSCREEN
-            )
-        else:
-            self.screen = pygame.display.set_mode((C.WINDOW_WIDTH, C.WINDOW_HEIGHT))
 
     # ------------------------------------------------------------------
     # Public: tick accumulator
@@ -441,7 +431,7 @@ class Renderer:
 
         # Status / keybind hint (right-aligned)
         if state.status == GameStatus.PLAYING:
-            status_text  = "PAUSED  [SPACE = resume]" if state.paused else "SPACE = pause  |  TAB = speed  |  F11 = fullscreen  |  ESC = menu"
+            status_text  = "PAUSED  [SPACE = resume]" if state.paused else "SPACE = pause  |  TAB = speed  |  ESC = menu"
             status_color = C.COLOR_SPEED_HIGHLIGHT if state.paused else C.COLOR_TEXT_SECONDARY
         elif state.status == GameStatus.WIN:
             status_text, status_color = "YOU WIN!", C.COLOR_WIN
@@ -463,7 +453,7 @@ class Renderer:
         big_font   = pygame.font.SysFont("Consolas", 72, bold=True)
         title_surf = big_font.render("PAUSED", True, C.COLOR_TEXT_PRIMARY)
         hint_surf  = self.font_small.render(
-            "SPACE to resume  |  TAB to change speed  |  F11 to toggle fullscreen  |  ESC for menu",
+            "SPACE to resume  |  TAB to change speed  |  ESC for menu",
             True, C.COLOR_TEXT_DISABLED,
         )
         cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
