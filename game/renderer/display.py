@@ -15,6 +15,7 @@ from game.core import config
 from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
+    ActionResearchTech,
     ActionSetSpeed,
     BuildingType,
     GameStatus,
@@ -240,9 +241,11 @@ class Renderer:
         self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
         y += C.DIVIDER_PADDING
 
-        y = self._draw_resource_row("Food", state.food, state.food_rate, C.COLOR_FOOD, x, y)
-        y = self._draw_resource_row("Wood", state.wood, state.wood_rate, C.COLOR_WOOD, x, y)
-        y = self._draw_resource_row("Gold", state.gold, state.gold_rate, C.COLOR_GOLD, x, y)
+        y = self._draw_resource_row("Food",   state.food,   state.food_rate,   C.COLOR_FOOD,   x, y)
+        y = self._draw_resource_row("Wood",   state.wood,   state.wood_rate,   C.COLOR_WOOD,   x, y)
+        y = self._draw_resource_row("Gold",   state.gold,   state.gold_rate,   C.COLOR_GOLD,   x, y)
+        y = self._draw_resource_row("Stone",  state.stone,  state.stone_rate,  C.COLOR_STONE,  x, y)
+        y = self._draw_resource_row("Planks", state.planks, state.planks_rate, C.COLOR_PLANKS, x, y)
 
         y += C.SECTION_GAP
         self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
@@ -331,8 +334,19 @@ class Renderer:
         self._blit("CONSTRUCT", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
         y += C.LINE_HEIGHT_MED
 
-        for btype in [BuildingType.FARM, BuildingType.LUMBER_MILL, BuildingType.MARKET]:
+        for btype in [BuildingType.FARM, BuildingType.LUMBER_MILL, BuildingType.MARKET,
+                      BuildingType.QUARRY, BuildingType.SAWMILL]:
             y = self._draw_build_button(state, btype, x, y)
+            y += C.BUILD_BTN_GAP
+
+        y += C.SECTION_GAP
+        self._divider(x, y, C.WINDOW_WIDTH - C.PANEL_PADDING)
+        y += C.DIVIDER_PADDING
+        self._blit("RESEARCH", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
+        y += C.LINE_HEIGHT_MED
+
+        for tech in C.RESEARCH_TECHS:
+            y = self._draw_research_row(state, tech, x, y)
             y += C.BUILD_BTN_GAP
 
     def _draw_building_row(self, state: GameState, building, x: int, y: int) -> int:
@@ -551,6 +565,8 @@ class Renderer:
             BuildingType.FARM:        C.FARM_MAX_WORKERS,
             BuildingType.LUMBER_MILL: C.LUMBERMILL_MAX_WORKERS,
             BuildingType.MARKET:      C.MARKET_MAX_WORKERS,
+            BuildingType.QUARRY:      C.QUARRY_MAX_WORKERS,
+            BuildingType.SAWMILL:     C.SAWMILL_MAX_WORKERS,
         }[btype]
 
     @staticmethod
@@ -559,18 +575,69 @@ class Renderer:
             BuildingType.FARM:        C.FARM_BUILD_COST_WOOD,
             BuildingType.LUMBER_MILL: C.LUMBERMILL_BUILD_COST_WOOD,
             BuildingType.MARKET:      C.MARKET_BUILD_COST_WOOD,
+            BuildingType.QUARRY:      C.QUARRY_BUILD_COST_WOOD,
+            BuildingType.SAWMILL:     C.SAWMILL_BUILD_COST_WOOD,
         }[btype]
 
     @staticmethod
     def _production_hint(btype: BuildingType, workers: int, state: GameState) -> str:
-        if workers == 0:
-            return "(no workers)"
         if btype == BuildingType.FARM:
-            return f"+{workers * C.FARM_FOOD_PER_WORKER_PER_TICK:.2f} Food/tick"
+            passive = C.FARM_PASSIVE_FOOD_PER_TICK
+            total = workers * C.FARM_FOOD_PER_WORKER_PER_TICK + passive
+            if workers == 0:
+                return f"+{passive:.2f} Food/tick (passive)"
+            return f"+{total:.2f} Food/tick (+{passive:.1f} passive)"
         elif btype == BuildingType.LUMBER_MILL:
-            return f"+{workers * C.LUMBERMILL_WOOD_PER_WORKER_PER_TICK:.2f} Wood/tick"
+            passive = C.LUMBERMILL_PASSIVE_WOOD_PER_TICK
+            total = workers * C.LUMBERMILL_WOOD_PER_WORKER_PER_TICK + passive
+            if workers == 0:
+                return f"+{passive:.2f} Wood/tick (passive)"
+            return f"+{total:.2f} Wood/tick (+{passive:.1f} passive)"
+        elif btype == BuildingType.QUARRY:
+            passive = C.QUARRY_PASSIVE_STONE_PER_TICK
+            total = workers * C.QUARRY_STONE_PER_WORKER_PER_TICK + passive
+            if workers == 0:
+                return f"+{passive:.2f} Stone/tick (passive)"
+            return f"+{total:.2f} Stone/tick (+{passive:.1f} passive)"
+        elif btype == BuildingType.SAWMILL:
+            if workers == 0:
+                return "(no workers)"
+            planks = workers * C.SAWMILL_PLANKS_PER_WORKER_PER_TICK
+            wood   = workers * C.SAWMILL_WOOD_PER_WORKER_PER_TICK
+            return f"+{planks:.2f} Planks/tick  (-{wood:.2f} Wood/tick)"
         elif btype == BuildingType.MARKET:
-            gold = workers * C.MARKET_GOLD_PER_WORKER_PER_TICK
-            wood = workers * C.MARKET_WOOD_PER_WORKER_PER_TICK
-            return f"+{gold:.2f} Gold/tick  (-{wood:.2f} Wood/tick)"
+            if workers == 0:
+                return "(no workers)"
+            gold_w  = workers * C.MARKET_GOLD_PER_WORKER_PER_TICK
+            gold_p  = workers * C.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK
+            wood    = workers * C.MARKET_WOOD_PER_WORKER_PER_TICK
+            planks  = workers * C.MARKET_PLANKS_PER_WORKER_PER_TICK
+            return f"+{gold_w:.2f} Gold (-{wood:.2f} Wood) | +{gold_p:.2f} Gold (-{planks:.2f} Planks)"
         return ""
+
+    def _draw_research_row(self, state: GameState, tech: dict, x: int, y: int) -> int:
+        tech_id    = tech["tech_id"]
+        name       = tech["name"]
+        desc       = tech["description"]
+        cost       = tech["gold_cost"]
+        researched = tech_id in state.researched_tech_ids
+        can_afford = state.gold >= cost
+
+        if researched:
+            self._blit(f"[✓] {name}", self.font_small, C.COLOR_POSITIVE, x, y)
+            self._blit(desc, self.font_small, C.COLOR_TEXT_DISABLED, x + 20, y + C.LINE_HEIGHT_SMALL)
+            return y + C.LINE_HEIGHT_SMALL * 2
+        else:
+            label    = f"Research {name}  ({cost}g)"
+            btn_rect = pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT)
+            btn = Button(
+                rect=btn_rect,
+                label=label,
+                action=ActionResearchTech(tech_id=tech_id),
+                enabled=can_afford,
+                font=self.font_small,
+            )
+            self._buttons.append(btn)
+            btn.draw(self.screen)
+            self._blit(desc, self.font_small, C.COLOR_TEXT_DISABLED, x + 4, y + C.BUILD_BTN_HEIGHT + 2)
+            return y + C.BUILD_BTN_HEIGHT + C.LINE_HEIGHT_SMALL + 2

@@ -309,13 +309,18 @@ def run_balance_report(runs: int = 20, max_ticks: int = 1000) -> None:
 # Helper: assign a worker to the first building of a given type with space
 # ---------------------------------------------------------------------------
 
+_MAX_WORKERS_MAP = {
+    BuildingType.FARM:        config.FARM_MAX_WORKERS,
+    BuildingType.LUMBER_MILL: config.LUMBERMILL_MAX_WORKERS,
+    BuildingType.MARKET:      config.MARKET_MAX_WORKERS,
+    BuildingType.QUARRY:      config.QUARRY_MAX_WORKERS,
+    BuildingType.SAWMILL:     config.SAWMILL_MAX_WORKERS,
+}
+
+
 def _try_add_worker(state: GameState, btype: BuildingType) -> bool:
     """Assign one idle colonist to the first available building of btype."""
-    max_w = {
-        BuildingType.FARM: config.FARM_MAX_WORKERS,
-        BuildingType.LUMBER_MILL: config.LUMBERMILL_MAX_WORKERS,
-        BuildingType.MARKET: config.MARKET_MAX_WORKERS,
-    }[btype]
+    max_w = _MAX_WORKERS_MAP[btype]
     for b in state.buildings:
         if b.building_type == btype and b.workers_assigned < max_w:
             if state.idle_colonists > 0:
@@ -325,11 +330,7 @@ def _try_add_worker(state: GameState, btype: BuildingType) -> bool:
 
 
 def _try_add_worker_to(state: GameState, building_id: int, btype: BuildingType) -> bool:
-    max_w = {
-        BuildingType.FARM: config.FARM_MAX_WORKERS,
-        BuildingType.LUMBER_MILL: config.LUMBERMILL_MAX_WORKERS,
-        BuildingType.MARKET: config.MARKET_MAX_WORKERS,
-    }[btype]
+    max_w = _MAX_WORKERS_MAP[btype]
     b = state.building_by_id(building_id)
     if b and b.workers_assigned < max_w and state.idle_colonists > 0:
         engine.apply_action(state, ActionAssignWorker(building_id, +1))

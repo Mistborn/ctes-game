@@ -31,6 +31,8 @@ class GameState:
     food: float = float(config.STARTING_FOOD)
     wood: float = float(config.STARTING_WOOD)
     gold: float = float(config.STARTING_GOLD)
+    stone: float = float(config.STARTING_STONE)
+    planks: float = float(config.STARTING_PLANKS)
 
     # -------------------------------------------------------------------
     # Per-tick rate snapshots (updated by engine each tick for display)
@@ -38,6 +40,8 @@ class GameState:
     food_rate: float = 0.0   # net food change last tick
     wood_rate: float = 0.0
     gold_rate: float = 0.0
+    stone_rate: float = 0.0
+    planks_rate: float = 0.0
 
     # -------------------------------------------------------------------
     # Entities
@@ -60,6 +64,11 @@ class GameState:
     peak_colonists: int = 0
 
     # -------------------------------------------------------------------
+    # Research
+    # -------------------------------------------------------------------
+    researched_tech_ids: List[str] = field(default_factory=list)
+
+    # -------------------------------------------------------------------
     # Game status
     # -------------------------------------------------------------------
     status: GameStatus = GameStatus.PLAYING
@@ -76,9 +85,13 @@ class GameState:
             "food": self.food,
             "wood": self.wood,
             "gold": self.gold,
+            "stone": self.stone,
+            "planks": self.planks,
             "food_rate": self.food_rate,
             "wood_rate": self.wood_rate,
             "gold_rate": self.gold_rate,
+            "stone_rate": self.stone_rate,
+            "planks_rate": self.planks_rate,
             "colonists": [c.to_dict() for c in self.colonists],
             "buildings": [b.to_dict() for b in self.buildings],
             "next_colonist_id": self.next_colonist_id,
@@ -88,6 +101,7 @@ class GameState:
             "peak_colonists": self.peak_colonists,
             "status": self.status.value,
             "paused": self.paused,
+            "researched_tech_ids": list(self.researched_tech_ids),
         }
 
     def to_json(self) -> str:
@@ -101,9 +115,13 @@ class GameState:
             food=d["food"],
             wood=d["wood"],
             gold=d["gold"],
+            stone=d.get("stone", 0.0),
+            planks=d.get("planks", 0.0),
             food_rate=d.get("food_rate", 0.0),
             wood_rate=d.get("wood_rate", 0.0),
             gold_rate=d.get("gold_rate", 0.0),
+            stone_rate=d.get("stone_rate", 0.0),
+            planks_rate=d.get("planks_rate", 0.0),
             colonists=[Colonist.from_dict(c) for c in d["colonists"]],
             buildings=[Building.from_dict(b) for b in d["buildings"]],
             next_colonist_id=d["next_colonist_id"],
@@ -113,6 +131,7 @@ class GameState:
             peak_colonists=d.get("peak_colonists", 0),
             status=GameStatus(d["status"]),
             paused=d.get("paused", False),
+            researched_tech_ids=list(d.get("researched_tech_ids", [])),
         )
         return gs
 

@@ -25,6 +25,8 @@ SPEED_MULTIPLIERS = [1, 5, 10]
 STARTING_FOOD = 50
 STARTING_WOOD = 20
 STARTING_GOLD = 0
+STARTING_STONE = 0
+STARTING_PLANKS = 0
 
 # ---------------------------------------------------------------------------
 # Starting Colonists
@@ -54,11 +56,26 @@ FARM_FOOD_PER_WORKER_PER_TICK = 1.5
 # Lumber Mill: wood produced per assigned worker per tick
 LUMBERMILL_WOOD_PER_WORKER_PER_TICK = 1.2
 
+# Passive income (produced with 0 workers, per building, per tick)
+FARM_PASSIVE_FOOD_PER_TICK = 0.3
+LUMBERMILL_PASSIVE_WOOD_PER_TICK = 0.2
+
 # Market: gold produced per assigned worker per tick
 # (Wood is consumed at this rate too — see MARKET_WOOD_CONSUMED_PER_WORKER_PER_TICK)
 MARKET_GOLD_PER_WORKER_PER_TICK = 0.8
 # Wood consumed per market worker per tick to produce gold
 MARKET_WOOD_PER_WORKER_PER_TICK = 0.6
+# Market with Planks (preferred over Wood): higher efficiency
+MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK = 1.0
+MARKET_PLANKS_PER_WORKER_PER_TICK = 0.4
+
+# Quarry: stone produced per worker per tick (+ passive)
+QUARRY_STONE_PER_WORKER_PER_TICK = 0.8
+QUARRY_PASSIVE_STONE_PER_TICK = 0.1
+
+# Sawmill: converts Wood → Planks per worker per tick
+SAWMILL_WOOD_PER_WORKER_PER_TICK = 0.6
+SAWMILL_PLANKS_PER_WORKER_PER_TICK = 0.5
 
 # ---------------------------------------------------------------------------
 # Building Construction Costs (Wood)
@@ -66,6 +83,8 @@ MARKET_WOOD_PER_WORKER_PER_TICK = 0.6
 FARM_BUILD_COST_WOOD = 15
 LUMBERMILL_BUILD_COST_WOOD = 20
 MARKET_BUILD_COST_WOOD = 30
+QUARRY_BUILD_COST_WOOD = 25
+SAWMILL_BUILD_COST_WOOD = 35
 
 # ---------------------------------------------------------------------------
 # Building Worker Capacity
@@ -74,6 +93,8 @@ MARKET_BUILD_COST_WOOD = 30
 FARM_MAX_WORKERS = 8
 LUMBERMILL_MAX_WORKERS = 6
 MARKET_MAX_WORKERS = 6
+QUARRY_MAX_WORKERS = 6
+SAWMILL_MAX_WORKERS = 4
 
 # ---------------------------------------------------------------------------
 # Win / Lose Conditions
@@ -88,6 +109,52 @@ WIN_GOLD_TARGET = 500
 FOOD_CAP = 9999
 WOOD_CAP = 9999
 GOLD_CAP = 9999
+STONE_CAP = 9999
+PLANKS_CAP = 9999
+
+# ---------------------------------------------------------------------------
+# Research — tech definitions and effect multipliers
+# ---------------------------------------------------------------------------
+# Each entry: tech_id, name, description, gold_cost
+RESEARCH_TECHS = [
+    {
+        "tech_id": "crop_rotation",
+        "name": "Crop Rotation",
+        "description": "Farms produce 25% more food",
+        "gold_cost": 80,
+    },
+    {
+        "tech_id": "reinforced_tools",
+        "name": "Reinforced Tools",
+        "description": "Lumber Mills and Quarries produce 20% more",
+        "gold_cost": 100,
+    },
+    {
+        "tech_id": "trade_routes",
+        "name": "Trade Routes",
+        "description": "Markets produce 30% more gold",
+        "gold_cost": 120,
+    },
+    {
+        "tech_id": "guild_halls",
+        "name": "Guild Halls",
+        "description": "All buildings gain +50% passive income",
+        "gold_cost": 150,
+    },
+    {
+        "tech_id": "stone_masonry",
+        "name": "Stone Masonry",
+        "description": "Sawmills produce 30% more planks",
+        "gold_cost": 200,
+    },
+]
+
+# Multipliers applied per tech
+RESEARCH_CROP_ROTATION_FARM_MULT    = 1.25
+RESEARCH_REINFORCED_TOOLS_MULT      = 1.20
+RESEARCH_TRADE_ROUTES_MARKET_MULT   = 1.30
+RESEARCH_GUILD_HALLS_PASSIVE_MULT   = 1.50
+RESEARCH_STONE_MASONRY_SAWMILL_MULT = 1.30
 
 # ---------------------------------------------------------------------------
 # UI Layout — panels, fonts, buttons
@@ -159,6 +226,8 @@ COLOR_NEGATIVE = (220, 80, 80)
 COLOR_GOLD = (255, 200, 50)
 COLOR_FOOD = (100, 200, 80)
 COLOR_WOOD = (160, 120, 70)
+COLOR_STONE = (180, 170, 160)
+COLOR_PLANKS = (190, 150, 80)
 COLOR_BTN_NORMAL = (55, 45, 32)
 COLOR_BTN_HOVER = (80, 65, 45)
 COLOR_BTN_DISABLED = (35, 30, 22)

@@ -17,6 +17,7 @@ from game.core import config
 from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
+    ActionResearchTech,
     ActionSetSpeed,
     Building,
     BuildingType,
@@ -72,9 +73,11 @@ def tick(state: GameState) -> GameState:
     state.ticks_since_last_arrival_check += 1
 
     # Snapshot resources before tick for rate calculation
-    food_before = state.food
-    wood_before = state.wood
-    gold_before = state.gold
+    food_before  = state.food
+    wood_before  = state.wood
+    gold_before  = state.gold
+    stone_before = state.stone
+    planks_before = state.planks
 
     # 1. Buildings produce resources
     _process_production(state)
@@ -83,18 +86,24 @@ def tick(state: GameState) -> GameState:
     _process_consumption(state)
 
     # 3. Apply resource caps
-    state.food = min(state.food, config.FOOD_CAP)
-    state.wood = min(state.wood, config.WOOD_CAP)
-    state.gold = min(state.gold, config.GOLD_CAP)
+    state.food   = min(state.food,   config.FOOD_CAP)
+    state.wood   = min(state.wood,   config.WOOD_CAP)
+    state.gold   = min(state.gold,   config.GOLD_CAP)
+    state.stone  = min(state.stone,  config.STONE_CAP)
+    state.planks = min(state.planks, config.PLANKS_CAP)
     # Resources cannot go below zero
-    state.food = max(state.food, 0.0)
-    state.wood = max(state.wood, 0.0)
-    state.gold = max(state.gold, 0.0)
+    state.food   = max(state.food,   0.0)
+    state.wood   = max(state.wood,   0.0)
+    state.gold   = max(state.gold,   0.0)
+    state.stone  = max(state.stone,  0.0)
+    state.planks = max(state.planks, 0.0)
 
     # 4. Update per-tick rate display values
-    state.food_rate = state.food - food_before
-    state.wood_rate = state.wood - wood_before
-    state.gold_rate = state.gold - gold_before
+    state.food_rate   = state.food   - food_before
+    state.wood_rate   = state.wood   - wood_before
+    state.gold_rate   = state.gold   - gold_before
+    state.stone_rate  = state.stone  - stone_before
+    state.planks_rate = state.planks - planks_before
 
     # 5. Colonist arrival check
     if state.ticks_since_last_arrival_check >= config.COLONIST_ARRIVAL_INTERVAL_TICKS:
@@ -116,7 +125,7 @@ def tick(state: GameState) -> GameState:
 
 def apply_action(
     state: GameState,
-    action: Union[ActionAssignWorker, ActionBuildBuilding, ActionSetSpeed],
+    action: Union[ActionAssignWorker, ActionBuildBuilding, ActionSetSpeed, ActionResearchTech],
 ) -> GameState:
     """Apply a player action to the state. Returns the mutated state."""
     if state.status != GameStatus.PLAYING:
@@ -128,6 +137,8 @@ def apply_action(
         _handle_build_building(state, action)
     elif isinstance(action, ActionSetSpeed):
         _handle_set_speed(state, action)
+    elif isinstance(action, ActionResearchTech):
+        _handle_research_tech(state, action)
 
     return state
 
@@ -147,30 +158,80 @@ def get_state(state: GameState) -> dict:
 
 def _process_production(state: GameState) -> None:
     """Apply per-tick resource production from all buildings."""
+    researched = set(state.researched_tech_ids)
+    passive_mult = config.RESEARCH_GUILD_HALLS_PASSIVE_MULT if "guild_halls" in researched else 1.0
+    farm_mult    = config.RESEARCH_CROP_ROTATION_FARM_MULT  if "crop_rotation" in researched else 1.0
+    tool_mult    = config.RESEARCH_REINFORCED_TOOLS_MULT    if "reinforced_tools" in researched else 1.0
+    market_mult  = config.RESEARCH_TRADE_ROUTES_MARKET_MULT if "trade_routes" in researched else 1.0
+    sawmill_mult = config.RESEARCH_STONE_MASONRY_SAWMILL_MULT if "stone_masonry" in researched else 1.0
+
     for building in state.buildings:
         workers = building.workers_assigned
+        btype = building.building_type
+
+        # Passive income (applied regardless of worker count)
+        if btype == BuildingType.FARM:
+            state.food += config.FARM_PASSIVE_FOOD_PER_TICK * farm_mult * passive_mult
+        elif btype == BuildingType.LUMBER_MILL:
+            state.wood += config.LUMBERMILL_PASSIVE_WOOD_PER_TICK * tool_mult * passive_mult
+        elif btype == BuildingType.QUARRY:
+            state.stone += config.QUARRY_PASSIVE_STONE_PER_TICK * tool_mult * passive_mult
+
+        # Worker-based production
         if workers == 0:
             continue
 
-        btype = building.building_type
-
         if btype == BuildingType.FARM:
-            state.food += workers * config.FARM_FOOD_PER_WORKER_PER_TICK
+            state.food += workers * config.FARM_FOOD_PER_WORKER_PER_TICK * farm_mult
 
         elif btype == BuildingType.LUMBER_MILL:
-            state.wood += workers * config.LUMBERMILL_WOOD_PER_WORKER_PER_TICK
+            state.wood += workers * config.LUMBERMILL_WOOD_PER_WORKER_PER_TICK * tool_mult
 
-        elif btype == BuildingType.MARKET:
-            # Market converts Wood → Gold; needs enough wood to operate
-            wood_needed = workers * config.MARKET_WOOD_PER_WORKER_PER_TICK
+        elif btype == BuildingType.QUARRY:
+            state.stone += workers * config.QUARRY_STONE_PER_WORKER_PER_TICK * tool_mult
+
+        elif btype == BuildingType.SAWMILL:
+            # Sawmill converts Wood → Planks
+            wood_needed = workers * config.SAWMILL_WOOD_PER_WORKER_PER_TICK
             if state.wood >= wood_needed:
                 state.wood -= wood_needed
-                state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK
+                state.planks += workers * config.SAWMILL_PLANKS_PER_WORKER_PER_TICK * sawmill_mult
             else:
-                # Partial operation: use all available wood proportionally
                 if wood_needed > 0:
                     fraction = state.wood / wood_needed
-                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * fraction
+                    state.planks += workers * config.SAWMILL_PLANKS_PER_WORKER_PER_TICK * sawmill_mult * fraction
+                    state.wood = 0.0
+
+        elif btype == BuildingType.MARKET:
+            # Prefer Planks over Wood for gold production (better rate)
+            planks_needed = workers * config.MARKET_PLANKS_PER_WORKER_PER_TICK
+            wood_needed   = workers * config.MARKET_WOOD_PER_WORKER_PER_TICK
+            if state.planks >= planks_needed:
+                state.planks -= planks_needed
+                state.gold += workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * market_mult
+            elif state.planks > 0:
+                # Partial planks: use planks first, then wood for the remainder
+                planks_fraction = state.planks / planks_needed
+                state.gold += workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * market_mult * planks_fraction
+                state.planks = 0.0
+                # Fill the remaining fraction with wood
+                remaining_fraction = 1.0 - planks_fraction
+                wood_for_remainder = wood_needed * remaining_fraction
+                if state.wood >= wood_for_remainder:
+                    state.wood -= wood_for_remainder
+                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult * remaining_fraction
+                elif wood_needed > 0:
+                    wood_frac = state.wood / wood_needed
+                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult * wood_frac
+                    state.wood = 0.0
+            elif state.wood >= wood_needed:
+                state.wood -= wood_needed
+                state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult
+            else:
+                # Partial wood operation
+                if wood_needed > 0:
+                    fraction = state.wood / wood_needed
+                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult * fraction
                     state.wood = 0.0
 
 
@@ -317,18 +378,39 @@ def _handle_set_speed(state: GameState, action: ActionSetSpeed) -> None:
 
 def _max_workers_for(btype: BuildingType) -> int:
     return {
-        BuildingType.FARM: config.FARM_MAX_WORKERS,
+        BuildingType.FARM:        config.FARM_MAX_WORKERS,
         BuildingType.LUMBER_MILL: config.LUMBERMILL_MAX_WORKERS,
-        BuildingType.MARKET: config.MARKET_MAX_WORKERS,
+        BuildingType.MARKET:      config.MARKET_MAX_WORKERS,
+        BuildingType.QUARRY:      config.QUARRY_MAX_WORKERS,
+        BuildingType.SAWMILL:     config.SAWMILL_MAX_WORKERS,
     }[btype]
 
 
 def _build_cost_for(btype: BuildingType) -> float:
     return {
-        BuildingType.FARM: config.FARM_BUILD_COST_WOOD,
+        BuildingType.FARM:        config.FARM_BUILD_COST_WOOD,
         BuildingType.LUMBER_MILL: config.LUMBERMILL_BUILD_COST_WOOD,
-        BuildingType.MARKET: config.MARKET_BUILD_COST_WOOD,
+        BuildingType.MARKET:      config.MARKET_BUILD_COST_WOOD,
+        BuildingType.QUARRY:      config.QUARRY_BUILD_COST_WOOD,
+        BuildingType.SAWMILL:     config.SAWMILL_BUILD_COST_WOOD,
     }[btype]
+
+
+def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
+    # Already researched?
+    if action.tech_id in state.researched_tech_ids:
+        return
+    # Find the tech definition
+    tech_def = next(
+        (t for t in config.RESEARCH_TECHS if t["tech_id"] == action.tech_id), None
+    )
+    if tech_def is None:
+        return
+    cost = tech_def["gold_cost"]
+    if state.gold < cost:
+        return
+    state.gold -= cost
+    state.researched_tech_ids.append(action.tech_id)
 
 
 # ---------------------------------------------------------------------------

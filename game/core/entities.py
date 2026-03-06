@@ -21,6 +21,8 @@ class BuildingType(str, Enum):
     FARM = "Farm"
     LUMBER_MILL = "Lumber Mill"
     MARKET = "Market"
+    QUARRY = "Quarry"
+    SAWMILL = "Sawmill"
 
 
 class GameStatus(str, Enum):
@@ -38,13 +40,17 @@ class ResourceBundle:
     food: float = 0.0
     wood: float = 0.0
     gold: float = 0.0
+    stone: float = 0.0
+    planks: float = 0.0
 
     def to_dict(self) -> dict:
-        return {"food": self.food, "wood": self.wood, "gold": self.gold}
+        return {"food": self.food, "wood": self.wood, "gold": self.gold,
+                "stone": self.stone, "planks": self.planks}
 
     @classmethod
     def from_dict(cls, d: dict) -> "ResourceBundle":
-        return cls(food=d["food"], wood=d["wood"], gold=d["gold"])
+        return cls(food=d["food"], wood=d["wood"], gold=d["gold"],
+                   stone=d.get("stone", 0.0), planks=d.get("planks", 0.0))
 
 
 # ---------------------------------------------------------------------------
@@ -123,3 +129,22 @@ class ActionBuildBuilding:
 class ActionSetSpeed:
     """Change simulation speed to one of the allowed multipliers."""
     speed_multiplier: int
+
+
+# ---------------------------------------------------------------------------
+# Research
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ResearchTech:
+    """Pure data descriptor for a researchable technology (no logic)."""
+    tech_id: str
+    name: str
+    description: str
+    gold_cost: int
+
+
+@dataclass
+class ActionResearchTech:
+    """Player action: spend gold to unlock a technology."""
+    tech_id: str
