@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pygame
 import sys
-from typing import List, Optional, Callable, Any
+from typing import List, Optional, Any
 
 from game.core import config
 from game.core.entities import (
@@ -23,7 +23,7 @@ from game.core.state import GameState
 
 
 # ---------------------------------------------------------------------------
-# Colour aliases (pulled from config so we only change values in one place)
+# Colour aliases
 # ---------------------------------------------------------------------------
 C = config  # short alias
 
@@ -102,12 +102,13 @@ class Renderer:
     def __init__(self) -> None:
         pygame.init()
         pygame.display.set_caption(C.WINDOW_TITLE)
+        self._fullscreen = False
         self.screen = pygame.display.set_mode((C.WINDOW_WIDTH, C.WINDOW_HEIGHT))
         self.clock = pygame.time.Clock()
 
         # Fonts
         self.font_large = pygame.font.SysFont("Consolas", C.FONT_SIZE_LARGE, bold=True)
-        self.font_med = pygame.font.SysFont("Consolas", C.FONT_SIZE_MEDIUM)
+        self.font_med   = pygame.font.SysFont("Consolas", C.FONT_SIZE_MEDIUM)
         self.font_small = pygame.font.SysFont("Consolas", C.FONT_SIZE_SMALL)
 
         # Button registry — rebuilt each frame
@@ -127,20 +128,38 @@ class Renderer:
                 pygame.quit()
                 sys.exit()
 
-            # Spacebar cycles speed
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                if state.status == GameStatus.PLAYING:
+            if event.type == pygame.KEYDOWN:
+                # Space → pause / unpause
+                if event.key == pygame.K_SPACE and state.status == GameStatus.PLAYING:
+                    state.paused = not state.paused
+
+                # Tab → cycle speed (only while playing and not paused)
+                elif event.key == pygame.K_TAB and state.status == GameStatus.PLAYING and not state.paused:
                     idx = C.SPEED_MULTIPLIERS.index(state.speed_multiplier)
                     next_idx = (idx + 1) % len(C.SPEED_MULTIPLIERS)
                     actions.append(ActionSetSpeed(C.SPEED_MULTIPLIERS[next_idx]))
 
-            # Button clicks
-            for btn in self._buttons:
-                result = btn.handle_event(event)
-                if result is not None:
-                    actions.append(result)
+                # F11 → toggle fullscreen
+                elif event.key == pygame.K_F11:
+                    self._toggle_fullscreen()
+
+            # Button clicks (ignored while paused)
+            if not state.paused:
+                for btn in self._buttons:
+                    result = btn.handle_event(event)
+                    if result is not None:
+                        actions.append(result)
 
         return actions
+
+    def _toggle_fullscreen(self) -> None:
+        self._fullscreen = not self._fullscreen
+        if self._fullscreen:
+            self.screen = pygame.display.set_mode(
+                (C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.FULLSCREEN
+            )
+        else:
+            self.screen = pygame.display.set_mode((C.WINDOW_WIDTH, C.WINDOW_HEIGHT))
 
     # ------------------------------------------------------------------
     # Public: tick accumulator
@@ -151,7 +170,7 @@ class Renderer:
         Returns True (and resets accumulator) when enough real time has
         passed to advance one game tick at the current speed multiplier.
         """
-        if state.status != GameStatus.PLAYING:
+        if state.status != GameStatus.PLAYING or state.paused:
             return False
         seconds_per_tick = C.SECONDS_PER_TICK_1X / state.speed_multiplier
         self._tick_accumulator += dt_seconds
@@ -178,6 +197,8 @@ class Renderer:
 
         if state.status != GameStatus.PLAYING:
             self._draw_endgame_overlay(state)
+        elif state.paused:
+            self._draw_pause_overlay()
 
         pygame.display.flip()
 
@@ -195,159 +216,71 @@ class Renderer:
         x = C.PANEL_PADDING
         y = C.PANEL_PADDING
 
-        # Title
-        self._blit(
-            "RESOURCES",
-            self.font_large,
-            C.COLOR_TEXT_PRIMARY,
-            x,
-            y,
-        )
-        y += 34
+        self._blit("RESOURCES", self.font_large, C.COLOR_TEXT_PRIMARY, x, y)
+        y += C.LINE_HEIGHT_LARGE
+        self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
+        y += C.DIVIDER_PADDING
 
-        # Divider
-        pygame.draw.line(
-            self.screen,
-            C.COLOR_PANEL_BORDER,
-            (x, y),
-            (C.LEFT_PANEL_WIDTH - x, y),
-        )
-        y += 12
+        y = self._draw_resource_row("Food", state.food, state.food_rate, C.COLOR_FOOD, x, y)
+        y = self._draw_resource_row("Wood", state.wood, state.wood_rate, C.COLOR_WOOD, x, y)
+        y = self._draw_resource_row("Gold", state.gold, state.gold_rate, C.COLOR_GOLD, x, y)
 
-        # Food
-        y = self._draw_resource_row(
-            surface=self.screen,
-            label="Food",
-            value=state.food,
-            rate=state.food_rate,
-            color=C.COLOR_FOOD,
-            x=x,
-            y=y,
-        )
+        y += C.SECTION_GAP
+        self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
+        y += C.DIVIDER_PADDING
 
-        # Wood
-        y = self._draw_resource_row(
-            surface=self.screen,
-            label="Wood",
-            value=state.wood,
-            rate=state.wood_rate,
-            color=C.COLOR_WOOD,
-            x=x,
-            y=y,
-        )
-
-        # Gold
-        y = self._draw_resource_row(
-            surface=self.screen,
-            label="Gold",
-            value=state.gold,
-            rate=state.gold_rate,
-            color=C.COLOR_GOLD,
-            x=x,
-            y=y,
-        )
-
-        y += 16
-        pygame.draw.line(
-            self.screen,
-            C.COLOR_PANEL_BORDER,
-            (x, y),
-            (C.LEFT_PANEL_WIDTH - x, y),
-        )
-        y += 12
-
-        # Win target progress
+        # Win target progress bar
         self._blit("WIN TARGET", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
-        y += 22
+        y += C.LINE_HEIGHT_MED
         progress = min(state.gold / C.WIN_GOLD_TARGET, 1.0)
-        bar_w = C.LEFT_PANEL_WIDTH - x * 2
-        bar_h = 14
-        bar_bg = pygame.Rect(x, y, bar_w, bar_h)
-        bar_fill = pygame.Rect(x, y, int(bar_w * progress), bar_h)
-        pygame.draw.rect(self.screen, C.COLOR_BTN_NORMAL, bar_bg, border_radius=3)
-        pygame.draw.rect(self.screen, C.COLOR_GOLD, bar_fill, border_radius=3)
-        pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, bar_bg, width=1, border_radius=3)
-        y += bar_h + 4
-        self._blit(
-            f"{state.gold:.0f} / {C.WIN_GOLD_TARGET} Gold",
-            self.font_small,
-            C.COLOR_GOLD,
-            x,
-            y,
-        )
-        y += 22
+        bar_w    = C.LEFT_PANEL_WIDTH - x * 2
+        bar_bg   = pygame.Rect(x, y, bar_w, C.PROGRESS_BAR_HEIGHT)
+        bar_fill = pygame.Rect(x, y, int(bar_w * progress), C.PROGRESS_BAR_HEIGHT)
+        pygame.draw.rect(self.screen, C.COLOR_BTN_NORMAL,    bar_bg,   border_radius=3)
+        pygame.draw.rect(self.screen, C.COLOR_GOLD,          bar_fill, border_radius=3)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER,  bar_bg,   width=1, border_radius=3)
+        y += C.PROGRESS_BAR_HEIGHT + 6
+        self._blit(f"{state.gold:.0f} / {C.WIN_GOLD_TARGET} Gold", self.font_small, C.COLOR_GOLD, x, y)
+        y += C.LINE_HEIGHT_MED
 
-        # Colonist details
-        y += 10
-        pygame.draw.line(
-            self.screen,
-            C.COLOR_PANEL_BORDER,
-            (x, y),
-            (C.LEFT_PANEL_WIDTH - x, y),
-        )
-        y += 12
+        y += C.SECTION_GAP
+        self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
+        y += C.DIVIDER_PADDING
+
+        # Colonists
         self._blit("COLONISTS", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
-        y += 22
-        self._blit(
-            f"Total:  {state.colonist_count}",
-            self.font_small,
-            C.COLOR_TEXT_PRIMARY,
-            x,
-            y,
-        )
-        y += 18
-        self._blit(
-            f"Idle:   {state.idle_colonists}",
-            self.font_small,
-            C.COLOR_POSITIVE if state.idle_colonists > 0 else C.COLOR_TEXT_SECONDARY,
-            x,
-            y,
-        )
-        y += 18
+        y += C.LINE_HEIGHT_MED
+        self._blit(f"Total:  {state.colonist_count}", self.font_small, C.COLOR_TEXT_PRIMARY, x, y)
+        y += C.LINE_HEIGHT_SMALL
+        idle_color = C.COLOR_POSITIVE if state.idle_colonists > 0 else C.COLOR_TEXT_SECONDARY
+        self._blit(f"Idle:   {state.idle_colonists}", self.font_small, idle_color, x, y)
+        y += C.LINE_HEIGHT_SMALL
         self._blit(
             f"Consumption: {state.colonist_count * C.FOOD_PER_COLONIST_PER_TICK:.1f}/tick",
-            self.font_small,
-            C.COLOR_TEXT_SECONDARY,
-            x,
-            y,
+            self.font_small, C.COLOR_TEXT_SECONDARY, x, y,
         )
-        y += 18
+        y += C.LINE_HEIGHT_SMALL
         arrival_ticks = C.COLONIST_ARRIVAL_INTERVAL_TICKS - state.ticks_since_last_arrival_check
         food_ok = state.food > C.COLONIST_ARRIVAL_MIN_FOOD_SURPLUS
-        arrival_color = C.COLOR_POSITIVE if food_ok else C.COLOR_TEXT_DISABLED
         self._blit(
             f"Next arrival: {arrival_ticks} ticks {'(food OK)' if food_ok else '(need food)'}",
             self.font_small,
-            arrival_color,
-            x,
-            y,
+            C.COLOR_POSITIVE if food_ok else C.COLOR_TEXT_DISABLED,
+            x, y,
         )
 
     def _draw_resource_row(
-        self,
-        surface: pygame.Surface,
-        label: str,
-        value: float,
-        rate: float,
-        color: tuple,
-        x: int,
-        y: int,
+        self, label: str, value: float, rate: float, color: tuple, x: int, y: int
     ) -> int:
-        # Label
         self._blit(f"{label}:", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
-        # Value
-        self._blit(f"{value:>7.1f}", self.font_med, color, x + 80, y)
-        # Rate
-        rate_str = f"{rate:+.2f}/tick"
+        self._blit(f"{value:>7.1f}", self.font_med, color, x + C.RESOURCE_VALUE_X, y)
         rate_color = (
-            C.COLOR_POSITIVE
-            if rate > 0
-            else C.COLOR_NEGATIVE
-            if rate < 0
-            else C.COLOR_TEXT_SECONDARY
+            C.COLOR_POSITIVE if rate > 0 else
+            C.COLOR_NEGATIVE if rate < 0 else
+            C.COLOR_TEXT_SECONDARY
         )
-        self._blit(rate_str, self.font_small, rate_color, x + 180, y + 2)
-        return y + 26
+        self._blit(f"{rate:+.2f}/tick", self.font_small, rate_color, x + C.RESOURCE_RATE_X, y + 3)
+        return y + C.RESOURCE_ROW_HEIGHT
 
     # ------------------------------------------------------------------
     # Right panel — buildings + worker assignment + build buttons
@@ -365,198 +298,148 @@ class Renderer:
         y = C.PANEL_PADDING
 
         self._blit("BUILDINGS", self.font_large, C.COLOR_TEXT_PRIMARY, x, y)
-        y += 34
-        pygame.draw.line(
-            self.screen,
-            C.COLOR_PANEL_BORDER,
-            (x, y),
-            (C.WINDOW_WIDTH - C.PANEL_PADDING, y),
-        )
-        y += 12
+        y += C.LINE_HEIGHT_LARGE
+        self._divider(x, y, C.WINDOW_WIDTH - C.PANEL_PADDING)
+        y += C.DIVIDER_PADDING
 
-        # Existing buildings
         for building in state.buildings:
             y = self._draw_building_row(state, building, x, y)
-            y += 4
+            y += C.BUILDING_ROW_GAP
 
-        # Build-new-building section
-        y += 12
-        pygame.draw.line(
-            self.screen,
-            C.COLOR_PANEL_BORDER,
-            (x, y),
-            (C.WINDOW_WIDTH - C.PANEL_PADDING, y),
-        )
-        y += 10
+        y += C.SECTION_GAP
+        self._divider(x, y, C.WINDOW_WIDTH - C.PANEL_PADDING)
+        y += C.DIVIDER_PADDING
         self._blit("CONSTRUCT", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
-        y += 24
+        y += C.LINE_HEIGHT_MED
 
         for btype in [BuildingType.FARM, BuildingType.LUMBER_MILL, BuildingType.MARKET]:
             y = self._draw_build_button(state, btype, x, y)
-            y += 6
+            y += C.BUILD_BTN_GAP
 
-    def _draw_building_row(
-        self, state: GameState, building, x: int, y: int
-    ) -> int:
-        """Draw one building row with worker +/- controls. Returns new y."""
-        btype = building.building_type
+    def _draw_building_row(self, state: GameState, building, x: int, y: int) -> int:
+        btype   = building.building_type
         workers = building.workers_assigned
-        max_workers = self._max_workers(btype)
-        idle = state.idle_colonists
+        max_w   = self._max_workers(btype)
+        idle    = state.idle_colonists
 
-        # Building name
-        label = f"[{building.id}] {btype.value}"
-        self._blit(label, self.font_med, C.COLOR_TEXT_PRIMARY, x, y)
+        self._blit(f"[{building.id}] {btype.value}", self.font_med, C.COLOR_TEXT_PRIMARY, x, y)
 
-        # Worker bar visual
-        bar_x = x
-        bar_y = y + 22
-        pip_size = 10
-        pip_gap = 2
-        for i in range(max_workers):
-            pip_rect = pygame.Rect(bar_x + i * (pip_size + pip_gap), bar_y, pip_size, pip_size)
+        # Worker pips
+        pip_y = y + C.LINE_HEIGHT_MED
+        for i in range(max_w):
+            pip_rect = pygame.Rect(
+                x + i * (C.WORKER_PIP_SIZE + C.WORKER_PIP_GAP),
+                pip_y,
+                C.WORKER_PIP_SIZE,
+                C.WORKER_PIP_SIZE,
+            )
             pip_color = C.COLOR_POSITIVE if i < workers else C.COLOR_BTN_NORMAL
             pygame.draw.rect(self.screen, pip_color, pip_rect, border_radius=2)
             pygame.draw.rect(self.screen, C.COLOR_BTN_BORDER, pip_rect, width=1, border_radius=2)
 
-        # Worker count label
-        self._blit(
-            f"{workers}/{max_workers} workers",
-            self.font_small,
-            C.COLOR_TEXT_SECONDARY,
-            x + max_workers * (pip_size + pip_gap) + 6,
-            bar_y,
-        )
+        count_x = x + max_w * (C.WORKER_PIP_SIZE + C.WORKER_PIP_GAP) + 8
+        self._blit(f"{workers}/{max_w} workers", self.font_small, C.COLOR_TEXT_SECONDARY, count_x, pip_y)
 
-        # Production rate hint
-        rate_hint = self._production_hint(btype, workers, state)
-        self._blit(rate_hint, self.font_small, C.COLOR_TEXT_SECONDARY, x, bar_y + 14)
+        hint = self._production_hint(btype, workers, state)
+        self._blit(hint, self.font_small, C.COLOR_TEXT_SECONDARY, x, pip_y + C.BUILDING_HINT_Y)
 
-        # +/- buttons (right-aligned within panel)
+        # +/- buttons (right-aligned)
         btn_right_x = C.WINDOW_WIDTH - C.PANEL_PADDING - C.WORKER_BTN_WIDTH
-        btn_y = y
-
-        # + button
-        can_add = idle > 0 and workers < max_workers
         btn_add = Button(
-            rect=pygame.Rect(btn_right_x, btn_y, C.WORKER_BTN_WIDTH, C.WORKER_BTN_HEIGHT),
+            rect=pygame.Rect(btn_right_x, y, C.WORKER_BTN_WIDTH, C.WORKER_BTN_HEIGHT),
             label="+",
             action=ActionAssignWorker(building_id=building.id, delta=1),
-            enabled=can_add,
+            enabled=idle > 0 and workers < max_w,
             font=self.font_med,
         )
-        self._buttons.append(btn_add)
-        btn_add.draw(self.screen)
-
-        # - button
-        can_remove = workers > 0
         btn_remove = Button(
-            rect=pygame.Rect(
-                btn_right_x - C.WORKER_BTN_WIDTH - 4, btn_y, C.WORKER_BTN_WIDTH, C.WORKER_BTN_HEIGHT
-            ),
+            rect=pygame.Rect(btn_right_x - C.WORKER_BTN_WIDTH - 4, y, C.WORKER_BTN_WIDTH, C.WORKER_BTN_HEIGHT),
             label="-",
             action=ActionAssignWorker(building_id=building.id, delta=-1),
-            enabled=can_remove,
+            enabled=workers > 0,
             font=self.font_med,
         )
-        self._buttons.append(btn_remove)
+        self._buttons += [btn_add, btn_remove]
+        btn_add.draw(self.screen)
         btn_remove.draw(self.screen)
 
-        return y + 56
+        return y + C.BUILDING_ROW_HEIGHT
 
-    def _draw_build_button(
-        self, state: GameState, btype: BuildingType, x: int, y: int
-    ) -> int:
-        """Draw a 'build X' button. Returns new y."""
-        cost = self._build_cost(btype)
+    def _draw_build_button(self, state: GameState, btype: BuildingType, x: int, y: int) -> int:
+        cost       = self._build_cost(btype)
         can_afford = state.wood >= cost
-
-        label = f"Build {btype.value}  (cost: {cost:.0f} Wood)"
-        btn_rect = pygame.Rect(
-            x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, 28
-        )
-        btn = Button(
-            rect=btn_rect,
-            label=label,
-            action=ActionBuildBuilding(building_type=btype),
-            enabled=can_afford,
-            font=self.font_small,
-        )
+        label      = f"Build {btype.value}  (cost: {cost:.0f} Wood)"
+        btn_rect   = pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT)
+        btn = Button(rect=btn_rect, label=label, action=ActionBuildBuilding(building_type=btype),
+                     enabled=can_afford, font=self.font_small)
         self._buttons.append(btn)
         btn.draw(self.screen)
-        return y + 32
+        return y + C.BUILD_BTN_HEIGHT + 4
 
     # ------------------------------------------------------------------
     # Bottom bar
     # ------------------------------------------------------------------
 
     def _draw_bottom_bar(self, state: GameState) -> None:
-        bar_rect = pygame.Rect(
-            0,
-            C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT,
-            C.WINDOW_WIDTH,
-            C.BOTTOM_BAR_HEIGHT,
-        )
+        bar_y    = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
+        bar_rect = pygame.Rect(0, bar_y, C.WINDOW_WIDTH, C.BOTTOM_BAR_HEIGHT)
         pygame.draw.rect(self.screen, C.COLOR_BOTTOM_BAR, bar_rect)
-        pygame.draw.line(
-            self.screen,
-            C.COLOR_PANEL_BORDER,
-            (0, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT),
-            (C.WINDOW_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT),
-        )
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (0, bar_y), (C.WINDOW_WIDTH, bar_y))
 
-        cy = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT + C.BOTTOM_BAR_HEIGHT // 2 - 8
+        # Vertically centre text in bar
+        cy = bar_y + (C.BOTTOM_BAR_HEIGHT - C.FONT_SIZE_MEDIUM) // 2
 
         # Tick counter
-        self._blit(
-            f"Tick: {state.tick:>6}",
-            self.font_med,
-            C.COLOR_TEXT_SECONDARY,
-            C.PANEL_PADDING,
-            cy,
-        )
+        self._blit(f"Tick: {state.tick:>6}", self.font_med, C.COLOR_TEXT_SECONDARY, C.PANEL_PADDING, cy)
 
-        # Speed indicator (each multiplier shown, active one highlighted)
-        sx = 180
+        # Speed indicator
+        sx = C.BOTTOM_BAR_TICK_W
         self._blit("Speed:", self.font_med, C.COLOR_TEXT_SECONDARY, sx, cy)
-        sx += 68
+        sx += C.BOTTOM_BAR_SPEED_LABEL_W
         for mult in C.SPEED_MULTIPLIERS:
-            is_active = mult == state.speed_multiplier
-            color = C.COLOR_SPEED_HIGHLIGHT if is_active else C.COLOR_TEXT_DISABLED
+            color = C.COLOR_SPEED_HIGHLIGHT if mult == state.speed_multiplier else C.COLOR_TEXT_DISABLED
             self._blit(f"{mult}x", self.font_med, color, sx, cy)
-            sx += 46
+            sx += C.BOTTOM_BAR_SPEED_ITEM_W
 
         # Colonist count
-        self._blit(
-            f"Colonists: {state.colonist_count}",
-            self.font_med,
-            C.COLOR_TEXT_PRIMARY,
-            sx + 20,
-            cy,
-        )
+        self._blit(f"Colonists: {state.colonist_count}", self.font_med, C.COLOR_TEXT_PRIMARY,
+                   sx + C.BOTTOM_BAR_COLONIST_GAP, cy)
 
-        # Starvation events
-        self._blit(
-            f"Starvations: {state.starvation_events}",
-            self.font_med,
-            C.COLOR_NEGATIVE if state.starvation_events > 0 else C.COLOR_TEXT_SECONDARY,
-            sx + 200,
-            cy,
-        )
+        # Starvation count
+        starve_color = C.COLOR_NEGATIVE if state.starvation_events > 0 else C.COLOR_TEXT_SECONDARY
+        self._blit(f"Starvations: {state.starvation_events}", self.font_med, starve_color,
+                   sx + C.BOTTOM_BAR_COLONIST_GAP + C.BOTTOM_BAR_STARVE_GAP, cy)
 
-        # Status
-        status_text = {
-            GameStatus.PLAYING: "PLAYING  [SPACE = speed]",
-            GameStatus.WIN: "YOU WIN!",
-            GameStatus.LOSE: "GAME OVER",
-        }[state.status]
-        status_color = {
-            GameStatus.PLAYING: C.COLOR_TEXT_SECONDARY,
-            GameStatus.WIN: C.COLOR_WIN,
-            GameStatus.LOSE: C.COLOR_LOSE,
-        }[state.status]
+        # Status / keybind hint (right-aligned)
+        if state.status == GameStatus.PLAYING:
+            status_text  = "PAUSED  [SPACE = resume]" if state.paused else "SPACE = pause  |  TAB = speed  |  F11 = fullscreen"
+            status_color = C.COLOR_SPEED_HIGHLIGHT if state.paused else C.COLOR_TEXT_SECONDARY
+        elif state.status == GameStatus.WIN:
+            status_text, status_color = "YOU WIN!", C.COLOR_WIN
+        else:
+            status_text, status_color = "GAME OVER", C.COLOR_LOSE
+
         surf = self.font_med.render(status_text, True, status_color)
         self.screen.blit(surf, (C.WINDOW_WIDTH - surf.get_width() - C.PANEL_PADDING, cy))
+
+    # ------------------------------------------------------------------
+    # Pause overlay
+    # ------------------------------------------------------------------
+
+    def _draw_pause_overlay(self) -> None:
+        overlay = pygame.Surface((C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 100))
+        self.screen.blit(overlay, (0, 0))
+
+        big_font   = pygame.font.SysFont("Consolas", 72, bold=True)
+        title_surf = big_font.render("PAUSED", True, C.COLOR_TEXT_PRIMARY)
+        hint_surf  = self.font_small.render(
+            "SPACE to resume  |  TAB to change speed  |  F11 to toggle fullscreen",
+            True, C.COLOR_TEXT_DISABLED,
+        )
+        cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 24)))
+        self.screen.blit(hint_surf,  hint_surf.get_rect(center=(cx, cy + 44)))
 
     # ------------------------------------------------------------------
     # Endgame overlay
@@ -568,57 +451,49 @@ class Renderer:
         self.screen.blit(overlay, (0, 0))
 
         if state.status == GameStatus.WIN:
-            title = "VICTORY!"
+            title    = "VICTORY!"
             subtitle = f"You accumulated {state.gold:.0f} Gold in {state.tick} ticks!"
-            color = C.COLOR_WIN
+            color    = C.COLOR_WIN
         else:
-            title = "DEFEAT"
+            title    = "DEFEAT"
             subtitle = f"All colonists perished on tick {state.tick}."
-            color = C.COLOR_LOSE
+            color    = C.COLOR_LOSE
 
-        big_font = pygame.font.SysFont("Consolas", 54, bold=True)
-        sub_font = pygame.font.SysFont("Consolas", 22)
-
+        big_font   = pygame.font.SysFont("Consolas", 72, bold=True)
+        sub_font   = pygame.font.SysFont("Consolas", 28)
         title_surf = big_font.render(title, True, color)
-        sub_surf = sub_font.render(subtitle, True, C.COLOR_TEXT_PRIMARY)
-        hint_surf = self.font_small.render("Close the window to exit.", True, C.COLOR_TEXT_DISABLED)
+        sub_surf   = sub_font.render(subtitle, True, C.COLOR_TEXT_PRIMARY)
+        hint_surf  = self.font_small.render("Close the window to exit.", True, C.COLOR_TEXT_DISABLED)
 
-        cx = C.WINDOW_WIDTH // 2
-        cy = C.WINDOW_HEIGHT // 2
-
-        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 50)))
-        self.screen.blit(sub_surf, sub_surf.get_rect(center=(cx, cy + 10)))
-        self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, cy + 50)))
+        cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 60)))
+        self.screen.blit(sub_surf,   sub_surf.get_rect(center=(cx, cy + 14)))
+        self.screen.blit(hint_surf,  hint_surf.get_rect(center=(cx, cy + 62)))
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
-    def _blit(
-        self,
-        text: str,
-        font: pygame.font.Font,
-        color: tuple,
-        x: int,
-        y: int,
-    ) -> None:
-        surf = font.render(text, True, color)
-        self.screen.blit(surf, (x, y))
+    def _blit(self, text: str, font: pygame.font.Font, color: tuple, x: int, y: int) -> None:
+        self.screen.blit(font.render(text, True, color), (x, y))
+
+    def _divider(self, x1: int, y: int, x2: int) -> None:
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (x1, y), (x2, y))
 
     @staticmethod
     def _max_workers(btype: BuildingType) -> int:
         return {
-            BuildingType.FARM: C.FARM_MAX_WORKERS,
+            BuildingType.FARM:        C.FARM_MAX_WORKERS,
             BuildingType.LUMBER_MILL: C.LUMBERMILL_MAX_WORKERS,
-            BuildingType.MARKET: C.MARKET_MAX_WORKERS,
+            BuildingType.MARKET:      C.MARKET_MAX_WORKERS,
         }[btype]
 
     @staticmethod
     def _build_cost(btype: BuildingType) -> float:
         return {
-            BuildingType.FARM: C.FARM_BUILD_COST_WOOD,
+            BuildingType.FARM:        C.FARM_BUILD_COST_WOOD,
             BuildingType.LUMBER_MILL: C.LUMBERMILL_BUILD_COST_WOOD,
-            BuildingType.MARKET: C.MARKET_BUILD_COST_WOOD,
+            BuildingType.MARKET:      C.MARKET_BUILD_COST_WOOD,
         }[btype]
 
     @staticmethod
@@ -626,13 +501,11 @@ class Renderer:
         if workers == 0:
             return "(no workers)"
         if btype == BuildingType.FARM:
-            rate = workers * C.FARM_FOOD_PER_WORKER_PER_TICK
-            return f"+{rate:.2f} Food/tick"
+            return f"+{workers * C.FARM_FOOD_PER_WORKER_PER_TICK:.2f} Food/tick"
         elif btype == BuildingType.LUMBER_MILL:
-            rate = workers * C.LUMBERMILL_WOOD_PER_WORKER_PER_TICK
-            return f"+{rate:.2f} Wood/tick"
+            return f"+{workers * C.LUMBERMILL_WOOD_PER_WORKER_PER_TICK:.2f} Wood/tick"
         elif btype == BuildingType.MARKET:
             gold = workers * C.MARKET_GOLD_PER_WORKER_PER_TICK
-            wood_cost = workers * C.MARKET_WOOD_PER_WORKER_PER_TICK
-            return f"+{gold:.2f} Gold/tick  (-{wood_cost:.2f} Wood/tick)"
+            wood = workers * C.MARKET_WOOD_PER_WORKER_PER_TICK
+            return f"+{gold:.2f} Gold/tick  (-{wood:.2f} Wood/tick)"
         return ""

@@ -63,6 +63,7 @@ class GameState:
     # Game status
     # -------------------------------------------------------------------
     status: GameStatus = GameStatus.PLAYING
+    paused: bool = False
 
     # -------------------------------------------------------------------
     # JSON serialisation
@@ -86,6 +87,7 @@ class GameState:
             "starvation_events": self.starvation_events,
             "peak_colonists": self.peak_colonists,
             "status": self.status.value,
+            "paused": self.paused,
         }
 
     def to_json(self) -> str:
@@ -110,6 +112,7 @@ class GameState:
             starvation_events=d.get("starvation_events", 0),
             peak_colonists=d.get("peak_colonists", 0),
             status=GameStatus(d["status"]),
+            paused=d.get("paused", False),
         )
         return gs
 

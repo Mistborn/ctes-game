@@ -6,8 +6,8 @@
 # ---------------------------------------------------------------------------
 # Window / Display
 # ---------------------------------------------------------------------------
-WINDOW_WIDTH = 1280
-WINDOW_HEIGHT = 720
+WINDOW_WIDTH = 1920
+WINDOW_HEIGHT = 1200
 WINDOW_TITLE = "Kingdoms of the Forgotten — Colony Builder"
 TARGET_FPS = 60
 
@@ -90,19 +90,60 @@ WOOD_CAP = 9999
 GOLD_CAP = 9999
 
 # ---------------------------------------------------------------------------
-# UI Layout
+# UI Layout — panels, fonts, buttons
 # ---------------------------------------------------------------------------
-LEFT_PANEL_WIDTH = 320
-RIGHT_PANEL_WIDTH = 400
-BOTTOM_BAR_HEIGHT = 60
-PANEL_PADDING = 16
-FONT_SIZE_LARGE = 22
-FONT_SIZE_MEDIUM = 17
-FONT_SIZE_SMALL = 13
+LEFT_PANEL_WIDTH = 480       # was 320 at 1280×720
+RIGHT_PANEL_WIDTH = 600      # was 400
+BOTTOM_BAR_HEIGHT = 80       # was 60
+PANEL_PADDING = 24           # was 16
+FONT_SIZE_LARGE = 32         # was 22
+FONT_SIZE_MEDIUM = 24        # was 17
+FONT_SIZE_SMALL = 18         # was 13
 
-# Button dimensions for worker assignment +/-
-WORKER_BTN_WIDTH = 28
-WORKER_BTN_HEIGHT = 24
+# Worker assignment +/- buttons
+WORKER_BTN_WIDTH = 40        # was 28
+WORKER_BTN_HEIGHT = 34       # was 24
+
+# ---------------------------------------------------------------------------
+# Layout spacing — every pixel offset lives here.
+# To retarget a different resolution, only touch this section + the window
+# dimensions above.
+# ---------------------------------------------------------------------------
+
+# Vertical line-height gaps after headings / data rows
+LINE_HEIGHT_LARGE = 48       # gap after a FONT_SIZE_LARGE heading
+LINE_HEIGHT_MED   = 30       # gap after a FONT_SIZE_MEDIUM label or heading
+LINE_HEIGHT_SMALL = 24       # gap after a FONT_SIZE_SMALL data row
+
+# Gaps around horizontal divider lines
+DIVIDER_PADDING = 16         # vertical space after a divider
+SECTION_GAP     = 18         # extra breathing room between major sections
+
+# Win-target progress bar
+PROGRESS_BAR_HEIGHT = 20     # was 14
+
+# Resource rows (left panel)
+RESOURCE_VALUE_X   = 120     # x-offset from row origin to value column  (was 80)
+RESOURCE_RATE_X    = 280     # x-offset from row origin to rate column   (was 180)
+RESOURCE_ROW_HEIGHT = 34     # total height consumed per resource row    (was 26)
+
+# Building rows (right panel)
+WORKER_PIP_SIZE    = 14      # side length of each worker-slot pip       (was 10)
+WORKER_PIP_GAP     = 3       # gap between pips                          (was 2)
+BUILDING_HINT_Y    = 20      # y-offset from pip row to production hint  (was 14)
+BUILDING_ROW_HEIGHT = 82     # total height consumed per building row    (was 56)
+BUILDING_ROW_GAP   = 6       # extra gap between buildings               (was 4)
+
+# Build buttons (right panel construct section)
+BUILD_BTN_HEIGHT = 40        # rect height of a 'Build X' button         (was 28)
+BUILD_BTN_GAP    = 8         # gap between consecutive build buttons     (was 6)
+
+# Bottom bar layout (all x-positions relative to bar left edge)
+BOTTOM_BAR_TICK_W        = 270   # width of tick counter column         (was 180)
+BOTTOM_BAR_SPEED_LABEL_W = 100   # width of "Speed:" label              (was 68)
+BOTTOM_BAR_SPEED_ITEM_W  = 68    # width per speed option ("1x" etc.)   (was 46)
+BOTTOM_BAR_COLONIST_GAP  = 30    # gap before colonist count            (was 20)
+BOTTOM_BAR_STARVE_GAP    = 300   # gap before starvation count          (was 200)
 
 # ---------------------------------------------------------------------------
 # Colors (R, G, B)
