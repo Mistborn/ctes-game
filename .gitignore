@@ -12,6 +12,9 @@ __pycache__/
 # uv.lock is fine to commit — uncomment below to exclude it
 # uv.lock
 
+# Save files
+saves/
+
 # OS
 .DS_Store
 Thumbs.db
