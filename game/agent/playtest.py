@@ -20,6 +20,7 @@ from game.core import config, engine
 from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
+    ActionResearchTech,
     BuildingType,
     GameStatus,
 )
@@ -381,6 +382,297 @@ def _try_add_worker_to(state: GameState, building_id: int, btype: BuildingType) 
         engine.apply_action(state, ActionAssignWorker(building_id, +1))
         return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# LLM Evaluator — requires `anthropic` package
+# An LLM writes a new Python strategy function at each checkpoint.
+# ---------------------------------------------------------------------------
+
+def _format_state_for_llm(state: GameState) -> str:
+    """Return a compact human-readable summary of the current game state."""
+    lines = [
+        f"Tick: {state.tick}  |  Status: {state.status.value.upper()}",
+        "",
+        "Resources:",
+        (
+            f"  food={state.food:.1f} ({state.food_rate:+.2f}/tick)  "
+            f"wood={state.wood:.1f} ({state.wood_rate:+.2f}/tick)  "
+            f"gold={state.gold:.1f} ({state.gold_rate:+.2f}/tick)"
+        ),
+        (
+            f"  stone={state.stone:.1f} ({state.stone_rate:+.2f}/tick)  "
+            f"planks={state.planks:.1f} ({state.planks_rate:+.2f}/tick)"
+        ),
+        "",
+        f"Colonists: {state.colonist_count} total, {state.idle_colonists} idle",
+        "",
+        "Buildings:",
+    ]
+    for b in state.buildings:
+        max_w = _MAX_WORKERS_MAP.get(b.building_type, "?")
+        lines.append(f"  {b.building_type.value} (id={b.id}): {b.workers_assigned}/{max_w} workers")
+    techs = state.researched_tech_ids or []
+    lines += [
+        "",
+        f"Researched: {', '.join(techs) if techs else 'none'}",
+        f"Starvation events: {state.starvation_events}",
+        f"Win condition: {config.WIN_GOLD_TARGET} gold (current: {state.gold:.1f})",
+    ]
+    return "\n".join(lines)
+
+
+def _compile_strategy(code: str) -> Strategy:
+    """
+    exec() LLM-generated strategy code in a sandboxed namespace.
+    Returns the `strategy` callable, or raises ValueError.
+    """
+    _SAFE_BUILTINS = {
+        "abs": abs, "all": all, "any": any, "bool": bool, "dict": dict,
+        "enumerate": enumerate, "float": float, "int": int, "isinstance": isinstance,
+        "len": len, "list": list, "max": max, "min": min, "print": print,
+        "range": range, "round": round, "set": set, "sorted": sorted,
+        "str": str, "sum": sum, "tuple": tuple, "type": type, "zip": zip,
+        "None": None, "True": True, "False": False,
+    }
+    namespace: Dict = {
+        "__builtins__": _SAFE_BUILTINS,
+        "engine": engine,
+        "config": config,
+        "ActionAssignWorker": ActionAssignWorker,
+        "ActionBuildBuilding": ActionBuildBuilding,
+        "ActionResearchTech": ActionResearchTech,
+        "BuildingType": BuildingType,
+        "GameStatus": GameStatus,
+    }
+    exec(compile(code, "<llm_strategy>", "exec"), namespace)  # noqa: S102
+    fn = namespace.get("strategy")
+    if not callable(fn):
+        raise ValueError("LLM code did not define a callable `strategy` function.")
+    return fn  # type: ignore[return-value]
+
+
+def _ask_llm_for_strategy(
+    client,
+    model: str,
+    state_summary: str,
+    checkpoint: int,
+    checkpoint_ticks: int,
+    history: List[Dict],
+) -> "tuple[str, str]":
+    """Ask the LLM to write a strategy function. Returns (code, rationale)."""
+    import re
+
+    system_prompt = (
+        'You are playing "Kingdoms of the Forgotten", a medieval colony builder.\n'
+        f"Each checkpoint you write a Python function that drives the colony for the next {checkpoint_ticks} ticks.\n\n"
+        "Available names (already in scope — do NOT use import statements):\n"
+        "  engine           — call engine.apply_action(state, action) to act\n"
+        "  config           — balance constants (e.g. config.FARM_BUILD_COST_WOOD)\n"
+        "  ActionAssignWorker(building_id, delta)   — delta=+1 assign, -1 remove\n"
+        "  ActionBuildBuilding(building_type)       — spend wood to construct\n"
+        "  ActionResearchTech(tech_id)              — spend gold to research\n"
+        "  BuildingType.FARM / LUMBER_MILL / MARKET / QUARRY / SAWMILL\n"
+        "  GameStatus.PLAYING / WIN / LOSE\n\n"
+        "Function signature (must match exactly):\n"
+        "  def strategy(state) -> None:\n"
+        "      # called once per tick; act via engine.apply_action()\n\n"
+        f"Win: gold >= {config.WIN_GOLD_TARGET}. Lose: all colonists starve.\n"
+        f"Food consumption: {config.FOOD_PER_COLONIST_PER_TICK} per colonist per tick.\n"
+        "Market consumes wood (or planks) to produce gold. state.idle_colonists = assignable workers.\n"
+        "Research techs: crop_rotation (farm+25%), reinforced_tools (mill/quarry+20%), "
+        "trade_routes (market+30%), guild_halls (passive+50%), stone_masonry (sawmill+30%)."
+    )
+
+    if history:
+        hist_parts = [
+            f"Checkpoint {h['checkpoint']}: {h['rationale']}\n  Result: {h['outcome_summary']}"
+            for h in history[-5:]
+        ]
+        history_text = "\n".join(hist_parts)
+    else:
+        history_text = "None — this is checkpoint 0."
+
+    user_prompt = (
+        f"## Checkpoint {checkpoint} — Current State\n\n"
+        f"{state_summary}\n\n"
+        f"## Previous decisions\n{history_text}\n\n"
+        "Respond in this EXACT format (nothing else before or after):\n\n"
+        f"RATIONALE: <2-4 sentences on your plan for the next {checkpoint_ticks} ticks>\n"
+        "CODE:\n```python\ndef strategy(state):\n    <your implementation>\n```"
+    )
+
+    response = client.messages.create(
+        model=model,
+        max_tokens=1500,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    text = response.content[0].text.strip()
+
+    rationale_match = re.search(r"RATIONALE:\s*(.+?)(?=\nCODE:|$)", text, re.DOTALL)
+    rationale = rationale_match.group(1).strip() if rationale_match else ""
+
+    code_match = re.search(r"```python\s*(def strategy[\s\S]+?)```", text)
+    if not code_match:
+        raise ValueError(f"No valid code block in LLM response:\n{text[:400]}")
+    code = code_match.group(1).strip()
+
+    return code, rationale
+
+
+def _write_markdown_log(
+    log_path: str,
+    entries: List[Dict],
+    final_state: GameState,
+    model: str,
+    checkpoint_ticks: int,
+) -> None:
+    """Write the decision log to a Markdown file."""
+    import datetime as _dt
+    from pathlib import Path as _Path
+
+    status = final_state.status.value
+    if status == "win":
+        result = f"WIN at tick {final_state.tick}"
+    elif status == "lose":
+        result = f"LOSE at tick {final_state.tick}"
+    else:
+        result = f"INCOMPLETE — reached tick {final_state.tick}"
+
+    lines = [
+        "# LLM Agent Playthrough Log",
+        f"Date: {_dt.date.today()}  |  Model: {model}",
+        f"{len(entries)} checkpoints x {checkpoint_ticks} ticks each",
+        "",
+        f"## Final Result: {result}",
+        (
+            f"Resources: food={final_state.food:.1f}  wood={final_state.wood:.1f}  "
+            f"gold={final_state.gold:.1f}  stone={final_state.stone:.1f}  "
+            f"planks={final_state.planks:.1f}"
+        ),
+        f"Peak colonists: {final_state.peak_colonists}  |  "
+        f"Starvation events: {final_state.starvation_events}",
+        "",
+        "---",
+    ]
+
+    for entry in entries:
+        lines += [
+            "",
+            f"## Checkpoint {entry['checkpoint']} (Tick {entry['tick_start']})",
+            "",
+            "### Game State",
+            entry["state_before"],
+            "",
+            "### LLM Decision",
+            f"**Rationale:** {entry['rationale']}",
+            "",
+            "**Strategy Code:**",
+            "```python",
+            entry["code"] or "# (no valid code produced — no-op fallback used)",
+            "```",
+            "",
+            "### Outcome",
+            entry["outcome_summary"],
+            "",
+            "---",
+        ]
+
+    _Path(log_path).write_text("\n".join(lines), encoding="utf-8")
+    print(f"  Log written to: {log_path}")
+
+
+def run_llm_agent(
+    model: str = "claude-opus-4-6",
+    checkpoint_ticks: int = 1000,
+    num_checkpoints: int = 20,
+    log_path: str | None = None,
+) -> MetricsDict:
+    """
+    Run one game driven by an LLM that writes a new Python strategy function
+    at each checkpoint. Requires ANTHROPIC_API_KEY environment variable.
+    Returns a MetricsDict (same schema as run_once).
+    """
+    import anthropic
+    import datetime
+
+    if log_path is None:
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = f"llm_agent_{ts}.md"
+
+    client = anthropic.Anthropic()
+    state = engine.new_game()
+    entries: List[Dict] = []
+
+    print(f"\n{'=' * 72}")
+    print(
+        f"  LLM Agent  |  model={model}  |  "
+        f"{num_checkpoints} checkpoints x {checkpoint_ticks} ticks"
+    )
+    print("=" * 72)
+
+    def _noop(s: GameState) -> None:
+        pass
+
+    for checkpoint in range(num_checkpoints):
+        if state.status != GameStatus.PLAYING:
+            break
+
+        tick_start = state.tick
+        food0, wood0, gold0 = state.food, state.wood, state.gold
+        col0 = state.colonist_count
+
+        state_summary = _format_state_for_llm(state)
+        print(f"\n  Checkpoint {checkpoint} (tick {tick_start}) — querying {model}...")
+
+        try:
+            code, rationale = _ask_llm_for_strategy(
+                client, model, state_summary, checkpoint, checkpoint_ticks, entries
+            )
+            strategy_fn = _compile_strategy(code)
+            preview = rationale[:80] + ("..." if len(rationale) > 80 else "")
+            print(f"  Rationale: {preview}")
+        except Exception as exc:
+            print(f"  WARNING: strategy failed ({exc}). Using no-op.")
+            code, rationale, strategy_fn = "", f"[ERROR: {exc}]", _noop
+
+        for _ in range(checkpoint_ticks):
+            if state.status != GameStatus.PLAYING:
+                break
+            engine.tick(state)
+            strategy_fn(state)
+
+        outcome = (
+            f"food {food0:.1f}->{state.food:.1f}  wood {wood0:.1f}->{state.wood:.1f}  "
+            f"gold {gold0:.1f}->{state.gold:.1f}  colonists {col0}->{state.colonist_count}"
+        )
+        print(f"  Result: {outcome}")
+
+        entries.append({
+            "checkpoint": checkpoint,
+            "tick_start": tick_start,
+            "state_before": state_summary,
+            "rationale": rationale,
+            "code": code,
+            "outcome_summary": outcome,
+        })
+
+    _write_markdown_log(log_path, entries, state, model, checkpoint_ticks)
+    print(f"\n{'=' * 72}")
+    print(f"  LLM Agent complete. Status: {state.status.value.upper()}")
+    print("=" * 72 + "\n")
+
+    return {
+        "ticks_survived": state.tick,
+        "gold_earned": state.gold,
+        "peak_colonists": state.peak_colonists,
+        "starvation_events": state.starvation_events,
+        "final_food": state.food,
+        "final_wood": state.wood,
+        "final_gold": state.gold,
+        "won": 1.0 if state.status == GameStatus.WIN else 0.0,
+    }
 
 
 # ---------------------------------------------------------------------------

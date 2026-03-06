@@ -55,7 +55,44 @@ def main() -> None:
         default=None,
         help="(headless) Load a save file and run strategies from that state.",
     )
+    parser.add_argument(
+        "--llm-agent",
+        action="store_true",
+        help="Run LLM-driven agent playthrough (requires ANTHROPIC_API_KEY).",
+    )
+    parser.add_argument(
+        "--model",
+        default="claude-opus-4-6",
+        help="(llm-agent) Claude model to use (default: claude-opus-4-6).",
+    )
+    parser.add_argument(
+        "--checkpoints",
+        type=int,
+        default=20,
+        help="(llm-agent) Number of strategy checkpoints (default: 20).",
+    )
+    parser.add_argument(
+        "--checkpoint-ticks",
+        type=int,
+        default=1000,
+        help="(llm-agent) Ticks per checkpoint (default: 1000).",
+    )
+    parser.add_argument(
+        "--log-file",
+        default=None,
+        help="(llm-agent) Output log file path (default: auto-named).",
+    )
     args = parser.parse_args()
+
+    if args.llm_agent:
+        from game.agent.playtest import run_llm_agent
+        run_llm_agent(
+            model=args.model,
+            checkpoint_ticks=args.checkpoint_ticks,
+            num_checkpoints=args.checkpoints,
+            log_path=args.log_file,
+        )
+        return
 
     if args.headless:
         # Delegate entirely to the agent module — no Pygame needed
