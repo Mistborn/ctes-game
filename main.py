@@ -62,8 +62,8 @@ def main() -> None:
     )
     parser.add_argument(
         "--model",
-        default="claude-opus-4-6",
-        help="(llm-agent) Claude model to use (default: claude-opus-4-6).",
+        default="claude-sonnet-4-6",
+        help="(llm-agent) Claude model to use (default: claude-sonnet-4-6).",
     )
     parser.add_argument(
         "--checkpoints",

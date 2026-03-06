@@ -429,8 +429,9 @@ def _compile_strategy(code: str) -> Strategy:
     """
     _SAFE_BUILTINS = {
         "abs": abs, "all": all, "any": any, "bool": bool, "dict": dict,
-        "enumerate": enumerate, "float": float, "int": int, "isinstance": isinstance,
-        "len": len, "list": list, "max": max, "min": min, "print": print,
+        "enumerate": enumerate, "filter": filter, "float": float, "int": int,
+        "isinstance": isinstance, "iter": iter, "len": len, "list": list,
+        "map": map, "max": max, "min": min, "next": next, "print": print,
         "range": range, "round": round, "set": set, "sorted": sorted,
         "str": str, "sum": sum, "tuple": tuple, "type": type, "zip": zip,
         "None": None, "True": True, "False": False,
@@ -479,9 +480,22 @@ def _ask_llm_for_strategy(
         "      # called once per tick; act via engine.apply_action()\n\n"
         f"Win: gold >= {config.WIN_GOLD_TARGET}. Lose: all colonists starve.\n"
         f"Food consumption: {config.FOOD_PER_COLONIST_PER_TICK} per colonist per tick.\n"
-        "Market consumes wood (or planks) to produce gold. state.idle_colonists = assignable workers.\n"
-        "Research techs: crop_rotation (farm+25%), reinforced_tools (mill/quarry+20%), "
-        "trade_routes (market+30%), guild_halls (passive+50%), stone_masonry (sawmill+30%)."
+        "Market consumes wood (or planks) to produce gold.\n"
+        "Key state attributes: state.idle_colonists (int), state.colonist_count (int),\n"
+        "  state.food/wood/gold/stone/planks (float), state.researched_tech_ids (list[str])\n"
+        "Building attributes: b.id (int), b.building_type (BuildingType), b.workers_assigned (int)\n"
+        "  (NOT num_workers — use workers_assigned)\n"
+        "\nResearch — costs and tech_ids (DO NOT guess config constant names for costs):\n"
+        + "".join(
+            f"  ActionResearchTech('{t['tech_id']}')  — costs {t['gold_cost']} gold  — {t['description']}\n"
+            for t in config.RESEARCH_TECHS
+        )
+        + "Use: if state.gold >= <cost> and '<tech_id>' not in state.researched_tech_ids: engine.apply_action(state, ActionResearchTech('<tech_id>'))\n"
+        "\nUseful config constants (use these exact names):\n"
+        f"  FARM_BUILD_COST_WOOD={config.FARM_BUILD_COST_WOOD}  LUMBERMILL_BUILD_COST_WOOD={config.LUMBERMILL_BUILD_COST_WOOD}\n"
+        f"  MARKET_BUILD_COST_WOOD={config.MARKET_BUILD_COST_WOOD}  QUARRY_BUILD_COST_WOOD={config.QUARRY_BUILD_COST_WOOD}\n"
+        f"  FARM_MAX_WORKERS={config.FARM_MAX_WORKERS}  LUMBERMILL_MAX_WORKERS={config.LUMBERMILL_MAX_WORKERS}\n"
+        f"  MARKET_MAX_WORKERS={config.MARKET_MAX_WORKERS}  QUARRY_MAX_WORKERS={config.QUARRY_MAX_WORKERS}"
     )
 
     if history:
@@ -535,8 +549,8 @@ def _write_markdown_log(
     status = final_state.status.value
     if status == "win":
         result = f"WIN at tick {final_state.tick}"
-    elif status == "lose":
-        result = f"LOSE at tick {final_state.tick}"
+    elif status in ("lose", "lose_tribute"):
+        result = f"LOSE ({status}) at tick {final_state.tick}"
     else:
         result = f"INCOMPLETE — reached tick {final_state.tick}"
 
@@ -584,7 +598,7 @@ def _write_markdown_log(
 
 
 def run_llm_agent(
-    model: str = "claude-opus-4-6",
+    model: str = "claude-sonnet-4-6",
     checkpoint_ticks: int = 1000,
     num_checkpoints: int = 20,
     log_path: str | None = None,
@@ -637,11 +651,20 @@ def run_llm_agent(
             print(f"  WARNING: strategy failed ({exc}). Using no-op.")
             code, rationale, strategy_fn = "", f"[ERROR: {exc}]", _noop
 
+        exec_error: str = ""
         for _ in range(checkpoint_ticks):
             if state.status != GameStatus.PLAYING:
                 break
             engine.tick(state)
-            strategy_fn(state)
+            try:
+                strategy_fn(state)
+            except Exception as exc:
+                if not exec_error:
+                    exec_error = str(exc)
+                    print(f"  WARNING: strategy raised {type(exc).__name__}: {exc} — switching to no-op.")
+                strategy_fn = _noop
+        if exec_error:
+            rationale += f"\n[RUNTIME ERROR: {exec_error}]"
 
         outcome = (
             f"food {food0:.1f}->{state.food:.1f}  wood {wood0:.1f}->{state.wood:.1f}  "
