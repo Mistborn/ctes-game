@@ -149,3 +149,9 @@ class ResearchTech:
 class ActionResearchTech:
     """Player action: spend gold to unlock a technology."""
     tech_id: str
+
+
+@dataclass
+class ActionRecruitCitizen:
+    """Player action: spend food to immediately recruit a new citizen."""
+    pass

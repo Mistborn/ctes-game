@@ -17,6 +17,7 @@ from game.core import config
 from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
+    ActionRecruitCitizen,
     ActionResearchTech,
     ActionSetSpeed,
     Building,
@@ -183,7 +184,7 @@ def tick(state: GameState) -> GameState:
 
 def apply_action(
     state: GameState,
-    action: Union[ActionAssignWorker, ActionBuildBuilding, ActionSetSpeed, ActionResearchTech],
+    action: Union[ActionAssignWorker, ActionBuildBuilding, ActionSetSpeed, ActionResearchTech, ActionRecruitCitizen],
 ) -> GameState:
     """Apply a player action to the state. Returns the mutated state."""
     if state.status != GameStatus.PLAYING:
@@ -197,6 +198,8 @@ def apply_action(
         _handle_set_speed(state, action)
     elif isinstance(action, ActionResearchTech):
         _handle_research_tech(state, action)
+    elif isinstance(action, ActionRecruitCitizen):
+        _handle_recruit_citizen(state)
 
     return state
 
@@ -473,6 +476,15 @@ def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
         return
     state.gold -= cost
     state.researched_tech_ids.append(action.tech_id)
+
+
+def _handle_recruit_citizen(state: GameState) -> None:
+    if state.food < config.RECRUIT_CITIZEN_FOOD_COST:
+        return
+    state.food -= config.RECRUIT_CITIZEN_FOOD_COST
+    colonist = _add_colonist(state)
+    if state.colonist_count > state.peak_colonists:
+        state.peak_colonists = state.colonist_count
 
 
 # ---------------------------------------------------------------------------

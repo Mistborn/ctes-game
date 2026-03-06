@@ -16,6 +16,7 @@ from game.core import config
 from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
+    ActionRecruitCitizen,
     ActionResearchTech,
     ActionSetSpeed,
     BuildingType,
@@ -392,6 +393,18 @@ class Renderer:
             x, y,
         )
         y += C.LINE_HEIGHT_SMALL
+
+        can_recruit = state.food >= C.RECRUIT_CITIZEN_FOOD_COST
+        recruit_btn = Button(
+            rect=pygame.Rect(x, y, C.LEFT_PANEL_WIDTH - x * 2, C.BUILD_BTN_HEIGHT),
+            label=f"Recruit Citizen  (cost: {C.RECRUIT_CITIZEN_FOOD_COST} Food)",
+            action=ActionRecruitCitizen(),
+            enabled=can_recruit,
+            font=self.font_small,
+        )
+        recruit_btn.draw(self.screen)
+        self._buttons.append(recruit_btn)
+        y += C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP
 
         # Season + tribute
         y += C.SECTION_GAP
