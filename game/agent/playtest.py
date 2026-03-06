@@ -1,11 +1,12 @@
 """
 playtest.py — Headless agent runner.
 
-Imports only from core.engine. No Pygame. No renderer.
+Imports only from core.engine (and core.save for --load). No Pygame. No renderer.
 
 Usage:
-    python -m game.agent.playtest            # run balance report
+    python -m game.agent.playtest                        # run balance report
     python -m game.agent.playtest --ticks 500 --runs 5
+    python -m game.agent.playtest --load saves/autosave.json  # start from save
 """
 
 from __future__ import annotations
@@ -213,13 +214,32 @@ STRATEGIES: Dict[str, Strategy] = {
 
 def run_once(strategy: Strategy, max_ticks: int = 1000) -> MetricsDict:
     """Run one game with the given strategy, return a metrics dictionary."""
-    state = engine.new_game()
+    return run_once_from_state(engine.new_game(), strategy, max_ticks)
 
-    for _ in range(max_ticks):
+
+def run_once_from_state(
+    state: GameState,
+    strategy: Strategy,
+    max_ticks: int = 1000,
+) -> MetricsDict:
+    """
+    Run *strategy* from an existing *state* until the game ends or *max_ticks*
+    additional ticks have elapsed.
+
+    The state is **not** mutated — a deep copy is used so the caller can call
+    this multiple times with the same starting state to compare strategies or
+    explore different continuations.
+    """
+    import copy
+
+    state = copy.deepcopy(state)
+    ticks_run = 0
+    while ticks_run < max_ticks:
         if state.status != GameStatus.PLAYING:
             break
         engine.tick(state)
         strategy(state)
+        ticks_run += 1
 
     return {
         "ticks_survived": state.tick,
@@ -243,10 +263,35 @@ def run_strategy(
     runs: int = 20,
     max_ticks: int = 1000,
 ) -> Dict[str, Dict[str, float]]:
-    """Run a strategy `runs` times and return mean/min/max for each metric."""
+    """Run a strategy `runs` times (each from a fresh new game) and return mean/min/max."""
+    return run_strategy_from_state(engine.new_game(), name, strategy, runs, max_ticks)
+
+
+def run_strategy_from_state(
+    starting_state: GameState,
+    name: str,
+    strategy: Strategy,
+    runs: int = 20,
+    max_ticks: int = 1000,
+) -> Dict[str, Dict[str, float]]:
+    """
+    Run *strategy* from *starting_state* for *runs* independent trials.
+
+    Each trial deep-copies the starting state so all runs begin identically.
+    Returns mean/min/max for each metric — useful for evaluating how a
+    strategy performs from a specific mid-game checkpoint.
+
+    Example (agent usage)::
+
+        from game.core.save import load_game
+        from game.agent.playtest import run_strategy_from_state, STRATEGIES
+
+        state = load_game("saves/autosave.json")
+        stats = run_strategy_from_state(state, "gold_rush", STRATEGIES["gold_rush"], runs=50)
+    """
     all_results: List[MetricsDict] = []
-    for i in range(runs):
-        result = run_once(strategy, max_ticks=max_ticks)
+    for _ in range(runs):
+        result = run_once_from_state(starting_state, strategy, max_ticks=max_ticks)
         all_results.append(result)
 
     aggregated: Dict[str, Dict[str, float]] = {}
@@ -352,15 +397,37 @@ def main() -> None:
         default=None,
         help="Run only one strategy (default: all)",
     )
+    parser.add_argument(
+        "--load",
+        metavar="PATH",
+        default=None,
+        help="Load a save file and run strategies from that state instead of a new game.",
+    )
     args = parser.parse_args()
+
+    # Determine starting state
+    if args.load:
+        from game.core.save import load_game
+        from pathlib import Path
+        starting_state = load_game(Path(args.load))
+        print(f"Loaded save: {args.load} (tick {starting_state.tick})")
+    else:
+        starting_state = engine.new_game()
 
     if args.strategy:
         name = args.strategy
         strat = STRATEGIES[name]
-        stats = run_strategy(name, strat, runs=args.runs, max_ticks=args.ticks)
+        stats = run_strategy_from_state(starting_state, name, strat, runs=args.runs, max_ticks=args.ticks)
         print(f"\nStrategy: {name}\n")
         for metric, values in stats.items():
             print(f"  {metric}: mean={values['mean']:.2f}  min={values['min']:.2f}  max={values['max']:.2f}")
+    elif args.load:
+        # With a loaded state, run all strategies and print a mini-report
+        for name, strat in STRATEGIES.items():
+            print(f"\n  Strategy: {name.upper()}")
+            stats = run_strategy_from_state(starting_state, name, strat, runs=args.runs, max_ticks=args.ticks)
+            for metric, values in stats.items():
+                print(f"    {metric:<22} mean={values['mean']:>8.2f}  min={values['min']:>8.2f}  max={values['max']:>8.2f}")
     else:
         run_balance_report(runs=args.runs, max_ticks=args.ticks)
 

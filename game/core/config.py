@@ -18,6 +18,8 @@ TARGET_FPS = 60
 SECONDS_PER_TICK_1X = 1.0
 # Speed multipliers the player can cycle through with spacebar
 SPEED_MULTIPLIERS = [1, 5, 10]
+# Autosave every N ticks
+AUTOSAVE_INTERVAL_TICKS = 1000
 
 # ---------------------------------------------------------------------------
 # Starting Resources

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pygame
 import sys
+from pathlib import Path
 from typing import List, Optional, Any
 
 from game.core import config
@@ -93,6 +94,7 @@ class Renderer:
 
     Usage:
         renderer = Renderer()
+        state = renderer.show_start_screen()   # blocking; returns initial GameState
         while True:
             actions = renderer.handle_events(state)
             for a in actions:
@@ -123,6 +125,74 @@ class Renderer:
 
         # Accumulated real time for tick scheduling
         self._tick_accumulator: float = 0.0
+
+    # ------------------------------------------------------------------
+    # Public: start screen — blocks until the player picks an option
+    # ------------------------------------------------------------------
+
+    def show_start_screen(self, saves: list) -> "GameState":
+        """
+        Display the main-menu / start screen and return the initial GameState.
+
+        *saves* is the list returned by ``game.core.save.list_saves()``.
+        """
+        from game.core import engine
+        from game.core.save import load_game
+
+        most_recent_path = saves[0]["path"] if saves else None
+
+        while True:
+            self.clock.tick(C.TARGET_FPS)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    sys.exit()
+
+                for btn in self._menu_buttons:
+                    result = btn.handle_event(event)
+                    if result == "new_game":
+                        return engine.new_game()
+                    elif result == "continue" and most_recent_path:
+                        return load_game(most_recent_path)
+                    elif result == "load_game":
+                        loaded = self.show_load_screen(saves)
+                        if loaded is not None:
+                            return loaded
+                        # User pressed Back — fall through to redraw start screen
+
+            self._draw_start_screen(saves)
+            pygame.display.flip()
+
+    def show_load_screen(self, saves: list) -> Optional["GameState"]:
+        """
+        Display the save-selection screen.  Returns a loaded GameState, or
+        None if the player pressed Back without choosing.
+        """
+        from game.core.save import load_game
+
+        while True:
+            self.clock.tick(C.TARGET_FPS)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    return None
+
+                for btn in self._menu_buttons:
+                    result = btn.handle_event(event)
+                    if result == "back":
+                        return None
+                    elif isinstance(result, Path):
+                        return load_game(result)
+
+            self._draw_load_screen(saves)
+            pygame.display.flip()
 
     # ------------------------------------------------------------------
     # Public: event handling → returns list of actions to apply
@@ -164,9 +234,8 @@ class Renderer:
                     if result == "continue":
                         self._show_escape_menu = False
                         state.paused = self._was_paused_before_menu
-                    elif result == "exit":
-                        pygame.quit()
-                        sys.exit()
+                    elif result in ("save_and_exit", "exit_no_save"):
+                        actions.append(result)
 
             # Regular button clicks (ignored while paused or escape menu open)
             if not state.paused and not self._show_escape_menu:
@@ -485,40 +554,187 @@ class Renderer:
 
         cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
 
-        # Box
-        box_w, box_h = 400, 280
-        box_rect = pygame.Rect(cx - box_w // 2, cy - box_h // 2, box_w, box_h)
+        # Box — tall enough for 3 buttons
+        btn_w, btn_h = 300, 52
+        gap = 16
+        box_w  = btn_w + 80
+        box_h  = 60 + 3 * btn_h + 2 * gap + 50  # title + buttons + hint
+        box_top = cy - box_h // 2
+        box_rect = pygame.Rect(cx - box_w // 2, box_top, box_w, box_h)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, box_rect, border_radius=8)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, box_rect, width=2, border_radius=8)
 
         # Title
         title_surf = self.font_large.render("MENU", True, C.COLOR_TEXT_PRIMARY)
-        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 90)))
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, box_top + 28)))
 
-        # Buttons
-        btn_w, btn_h = 280, 56
-        gap = 20
-        btn_y_continue = cy - btn_h - gap // 2 + 30
-        btn_y_exit     = cy + gap // 2 + 30
+        # Buttons — stacked vertically
+        btn_x   = cx - btn_w // 2
+        first_y = box_top + 60
 
         btn_continue = Button(
-            rect=pygame.Rect(cx - btn_w // 2, btn_y_continue, btn_w, btn_h),
+            rect=pygame.Rect(btn_x, first_y, btn_w, btn_h),
             label="Continue",
             action="continue",
             font=self.font_med,
         )
-        btn_exit = Button(
-            rect=pygame.Rect(cx - btn_w // 2, btn_y_exit, btn_w, btn_h),
-            label="Exit Game",
-            action="exit",
+        btn_save_exit = Button(
+            rect=pygame.Rect(btn_x, first_y + btn_h + gap, btn_w, btn_h),
+            label="Save & Exit",
+            action="save_and_exit",
             font=self.font_med,
         )
-        self._menu_buttons = [btn_continue, btn_exit]
+        btn_exit = Button(
+            rect=pygame.Rect(btn_x, first_y + 2 * (btn_h + gap), btn_w, btn_h),
+            label="Exit without saving",
+            action="exit_no_save",
+            font=self.font_med,
+        )
+        self._menu_buttons = [btn_continue, btn_save_exit, btn_exit]
         btn_continue.draw(self.screen)
+        btn_save_exit.draw(self.screen)
         btn_exit.draw(self.screen)
 
         hint_surf = self.font_small.render("ESC to resume", True, C.COLOR_TEXT_DISABLED)
-        self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, cy + box_h // 2 - 20)))
+        self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, box_top + box_h - 18)))
+
+    # ------------------------------------------------------------------
+    # Start screen
+    # ------------------------------------------------------------------
+
+    def _draw_start_screen(self, saves: list) -> None:
+        self._menu_buttons = []
+        self.screen.fill(C.COLOR_BG)
+
+        cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
+        has_saves = len(saves) > 0
+
+        # Title
+        title_font = pygame.font.SysFont("Consolas", 64, bold=True)
+        sub_font   = pygame.font.SysFont("Consolas", 28)
+        t_surf = title_font.render("KINGDOMS OF THE FORGOTTEN", True, C.COLOR_TEXT_PRIMARY)
+        s_surf = sub_font.render("Medieval Fantasy Colony Builder", True, C.COLOR_TEXT_SECONDARY)
+        self.screen.blit(t_surf, t_surf.get_rect(center=(cx, cy - 200)))
+        self.screen.blit(s_surf, s_surf.get_rect(center=(cx, cy - 136)))
+
+        # Three stacked buttons
+        btn_w, btn_h = 340, 60
+        gap = 20
+        total_h = 3 * btn_h + 2 * gap
+        first_y = cy - total_h // 2
+
+        btn_new = Button(
+            rect=pygame.Rect(cx - btn_w // 2, first_y, btn_w, btn_h),
+            label="New Game",
+            action="new_game",
+            font=self.font_large,
+        )
+        btn_cont = Button(
+            rect=pygame.Rect(cx - btn_w // 2, first_y + btn_h + gap, btn_w, btn_h),
+            label="Continue",
+            action="continue",
+            enabled=has_saves,
+            font=self.font_large,
+        )
+        btn_load = Button(
+            rect=pygame.Rect(cx - btn_w // 2, first_y + 2 * (btn_h + gap), btn_w, btn_h),
+            label="Load Game",
+            action="load_game",
+            enabled=has_saves,
+            font=self.font_large,
+        )
+        self._menu_buttons = [btn_new, btn_cont, btn_load]
+        btn_new.draw(self.screen)
+        btn_cont.draw(self.screen)
+        btn_load.draw(self.screen)
+
+        # Most-recent save info beneath the Continue button
+        info_y = first_y + btn_h + gap + btn_h + 10
+        if has_saves:
+            s = saves[0]
+            info_text = (
+                f"{s['name']}  \u2014  {s['datetime_str']}  \u2014  "
+                f"Tick {s['tick']}  |  {s['gold']:.0f} Gold  |  {s['colonists']} Colonists"
+            )
+            info_surf = self.font_small.render(info_text, True, C.COLOR_TEXT_DISABLED)
+            self.screen.blit(info_surf, info_surf.get_rect(center=(cx, info_y)))
+        else:
+            no_save_surf = self.font_small.render("(no saved games)", True, C.COLOR_TEXT_DISABLED)
+            self.screen.blit(no_save_surf, no_save_surf.get_rect(center=(cx, info_y)))
+
+        hint_surf = self.font_small.render("ESC to quit", True, C.COLOR_TEXT_DISABLED)
+        self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, C.WINDOW_HEIGHT - 40)))
+
+    # ------------------------------------------------------------------
+    # Load-game screen
+    # ------------------------------------------------------------------
+
+    def _draw_load_screen(self, saves: list) -> None:
+        self._menu_buttons = []
+        self.screen.fill(C.COLOR_BG)
+
+        cx = C.WINDOW_WIDTH // 2
+
+        # Title
+        title_surf = self.font_large.render("LOAD GAME", True, C.COLOR_TEXT_PRIMARY)
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, 60)))
+
+        # Column layout
+        row_h      = 64
+        row_w      = 1200
+        row_x      = cx - row_w // 2
+        list_top   = 120
+        max_rows   = min(len(saves), 12)
+
+        for i in range(max_rows):
+            s    = saves[i]
+            rect = pygame.Rect(row_x, list_top + i * (row_h + 6), row_w, row_h)
+            btn  = Button(
+                rect=rect,
+                label="",          # drawn manually below
+                action=s["path"],
+                font=self.font_small,
+            )
+            self._menu_buttons.append(btn)
+
+            # Draw background
+            hover_bg = C.COLOR_BTN_HOVER if btn._hovered else C.COLOR_BTN_NORMAL
+            pygame.draw.rect(self.screen, hover_bg, rect, border_radius=4)
+            pygame.draw.rect(self.screen, C.COLOR_BTN_BORDER, rect, width=1, border_radius=4)
+
+            # Columns: name + date | tick | gold | colonists
+            pad  = 16
+            cy_r = rect.centery
+            name_col  = row_x + pad
+            date_col  = row_x + 220
+            tick_col  = row_x + 560
+            gold_col  = row_x + 760
+            pop_col   = row_x + 980
+
+            name_surf = self.font_med.render(s["name"], True, C.COLOR_TEXT_PRIMARY)
+            date_surf = self.font_small.render(s["datetime_str"], True, C.COLOR_TEXT_SECONDARY)
+            tick_surf = self.font_small.render(f"Tick {s['tick']}", True, C.COLOR_TEXT_SECONDARY)
+            gold_surf = self.font_small.render(f"{s['gold']:.0f} Gold", True, C.COLOR_GOLD)
+            pop_surf  = self.font_small.render(f"{s['colonists']} Colonists", True, C.COLOR_TEXT_SECONDARY)
+
+            self.screen.blit(name_surf, name_surf.get_rect(midleft=(name_col, cy_r)))
+            self.screen.blit(date_surf, date_surf.get_rect(midleft=(date_col, cy_r)))
+            self.screen.blit(tick_surf, tick_surf.get_rect(midleft=(tick_col, cy_r)))
+            self.screen.blit(gold_surf, gold_surf.get_rect(midleft=(gold_col, cy_r)))
+            self.screen.blit(pop_surf,  pop_surf.get_rect(midleft=(pop_col,  cy_r)))
+
+        # Back button
+        btn_back = Button(
+            rect=pygame.Rect(cx - 140, C.WINDOW_HEIGHT - 100, 280, 54),
+            label="Back",
+            action="back",
+            font=self.font_med,
+        )
+        self._menu_buttons.append(btn_back)
+        btn_back.draw(self.screen)
+
+        hint_surf = self.font_small.render("ESC to go back", True, C.COLOR_TEXT_DISABLED)
+        self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, C.WINDOW_HEIGHT - 32)))
 
     # ------------------------------------------------------------------
     # Endgame overlay

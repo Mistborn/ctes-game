@@ -2,7 +2,8 @@
 main.py — Entry point for Kingdoms of the Forgotten.
 
 Normal mode:
-    python main.py
+    python main.py                  # shows start screen (New Game / Continue)
+    python main.py --new-game       # skip start screen, begin a fresh game
 
 Headless / agent mode (no display, runs balance report):
     python main.py --headless
@@ -43,22 +44,55 @@ def main() -> None:
         default=None,
         help="(headless) Run only one named strategy.",
     )
+    parser.add_argument(
+        "--new-game",
+        action="store_true",
+        help="Skip the start screen and begin a fresh game immediately.",
+    )
+    parser.add_argument(
+        "--load",
+        metavar="PATH",
+        default=None,
+        help="(headless) Load a save file and run strategies from that state.",
+    )
     args = parser.parse_args()
 
     if args.headless:
         # Delegate entirely to the agent module — no Pygame needed
-        from game.agent.playtest import run_balance_report, run_strategy, STRATEGIES
+        from game.agent.playtest import run_balance_report, run_strategy_from_state, STRATEGIES
+        from game.core import engine as _engine
+
+        if args.load:
+            from game.core.save import load_game
+            from pathlib import Path
+            starting_state = load_game(Path(args.load))
+            print(f"Loaded save: {args.load} (tick {starting_state.tick})")
+        else:
+            starting_state = _engine.new_game()
 
         if args.strategy:
             name = args.strategy
             strat = STRATEGIES[name]
-            stats = run_strategy(name, strat, runs=args.runs, max_ticks=args.ticks)
+            stats = run_strategy_from_state(
+                starting_state, name, strat, runs=args.runs, max_ticks=args.ticks
+            )
             print(f"\nStrategy: {name.upper()}\n")
             for metric, values in stats.items():
                 print(
                     f"  {metric:<22}  mean={values['mean']:>8.2f}  "
                     f"min={values['min']:>8.2f}  max={values['max']:>8.2f}"
                 )
+        elif args.load:
+            for name, strat in STRATEGIES.items():
+                print(f"\n  Strategy: {name.upper()}")
+                stats = run_strategy_from_state(
+                    starting_state, name, strat, runs=args.runs, max_ticks=args.ticks
+                )
+                for metric, values in stats.items():
+                    print(
+                        f"    {metric:<22} mean={values['mean']:>8.2f}  "
+                        f"min={values['min']:>8.2f}  max={values['max']:>8.2f}"
+                    )
         else:
             run_balance_report(runs=args.runs, max_ticks=args.ticks)
         return
@@ -66,24 +100,51 @@ def main() -> None:
     # -----------------------------------------------------------------------
     # Normal interactive mode — import Pygame only when needed
     # -----------------------------------------------------------------------
-    from game.core import engine
+    import pygame
+
+    from game.core import config, engine
+    from game.core import save as game_save
     from game.core.entities import GameStatus
     from game.renderer.display import Renderer
 
-    state = engine.new_game()
     renderer = Renderer()
+
+    if args.new_game:
+        state = engine.new_game()
+    else:
+        saves = game_save.list_saves()
+        state = renderer.show_start_screen(saves)
+
+    last_autosave_tick: int = state.tick  # don't immediately autosave on load
 
     while True:
         dt = renderer.tick_dt()
 
-        # Collect player actions
+        # Collect player actions (may include "save_and_exit" / "exit_no_save" sentinels)
         actions = renderer.handle_events(state)
         for action in actions:
-            engine.apply_action(state, action)
+            if action == "save_and_exit":
+                game_save.save_game(state)   # timestamped manual save
+                pygame.quit()
+                sys.exit()
+            elif action == "exit_no_save":
+                pygame.quit()
+                sys.exit()
+            else:
+                engine.apply_action(state, action)
 
         # Advance simulation if enough real time has passed
         if renderer.should_tick(state, dt):
             engine.tick(state)
+
+            # Autosave every AUTOSAVE_INTERVAL_TICKS ticks
+            if (
+                state.tick > 0
+                and state.tick % config.AUTOSAVE_INTERVAL_TICKS == 0
+                and state.tick != last_autosave_tick
+            ):
+                game_save.autosave_game(state)
+                last_autosave_tick = state.tick
 
         # Render
         renderer.draw(state)
