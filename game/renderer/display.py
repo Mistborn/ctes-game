@@ -114,6 +114,11 @@ class Renderer:
         # Button registry — rebuilt each frame
         self._buttons: List[Button] = []
 
+        # Escape menu
+        self._show_escape_menu: bool = False
+        self._was_paused_before_menu: bool = False
+        self._menu_buttons: List[Button] = []
+
         # Accumulated real time for tick scheduling
         self._tick_accumulator: float = 0.0
 
@@ -129,12 +134,22 @@ class Renderer:
                 sys.exit()
 
             if event.type == pygame.KEYDOWN:
-                # Space → pause / unpause
-                if event.key == pygame.K_SPACE and state.status == GameStatus.PLAYING:
+                # Escape → open/close escape menu (only while playing)
+                if event.key == pygame.K_ESCAPE and state.status == GameStatus.PLAYING:
+                    if self._show_escape_menu:
+                        self._show_escape_menu = False
+                        state.paused = self._was_paused_before_menu
+                    else:
+                        self._was_paused_before_menu = state.paused
+                        state.paused = True
+                        self._show_escape_menu = True
+
+                # Space → pause / unpause (not while escape menu is open)
+                elif event.key == pygame.K_SPACE and state.status == GameStatus.PLAYING and not self._show_escape_menu:
                     state.paused = not state.paused
 
                 # Tab → cycle speed (only while playing and not paused)
-                elif event.key == pygame.K_TAB and state.status == GameStatus.PLAYING and not state.paused:
+                elif event.key == pygame.K_TAB and state.status == GameStatus.PLAYING and not state.paused and not self._show_escape_menu:
                     idx = C.SPEED_MULTIPLIERS.index(state.speed_multiplier)
                     next_idx = (idx + 1) % len(C.SPEED_MULTIPLIERS)
                     actions.append(ActionSetSpeed(C.SPEED_MULTIPLIERS[next_idx]))
@@ -143,8 +158,19 @@ class Renderer:
                 elif event.key == pygame.K_F11:
                     self._toggle_fullscreen()
 
-            # Button clicks (ignored while paused)
-            if not state.paused:
+            # Escape menu buttons (always active when menu is open)
+            if self._show_escape_menu:
+                for btn in self._menu_buttons:
+                    result = btn.handle_event(event)
+                    if result == "continue":
+                        self._show_escape_menu = False
+                        state.paused = self._was_paused_before_menu
+                    elif result == "exit":
+                        pygame.quit()
+                        sys.exit()
+
+            # Regular button clicks (ignored while paused or escape menu open)
+            if not state.paused and not self._show_escape_menu:
                 for btn in self._buttons:
                     result = btn.handle_event(event)
                     if result is not None:
@@ -188,7 +214,8 @@ class Renderer:
     # ------------------------------------------------------------------
 
     def draw(self, state: GameState) -> None:
-        self._buttons = []  # reset each frame
+        self._buttons = []       # reset each frame
+        self._menu_buttons = []  # reset each frame
         self.screen.fill(C.COLOR_BG)
 
         self._draw_left_panel(state)
@@ -197,6 +224,8 @@ class Renderer:
 
         if state.status != GameStatus.PLAYING:
             self._draw_endgame_overlay(state)
+        elif self._show_escape_menu:
+            self._draw_escape_menu()
         elif state.paused:
             self._draw_pause_overlay()
 
@@ -412,7 +441,7 @@ class Renderer:
 
         # Status / keybind hint (right-aligned)
         if state.status == GameStatus.PLAYING:
-            status_text  = "PAUSED  [SPACE = resume]" if state.paused else "SPACE = pause  |  TAB = speed  |  F11 = fullscreen"
+            status_text  = "PAUSED  [SPACE = resume]" if state.paused else "SPACE = pause  |  TAB = speed  |  F11 = fullscreen  |  ESC = menu"
             status_color = C.COLOR_SPEED_HIGHLIGHT if state.paused else C.COLOR_TEXT_SECONDARY
         elif state.status == GameStatus.WIN:
             status_text, status_color = "YOU WIN!", C.COLOR_WIN
@@ -434,12 +463,58 @@ class Renderer:
         big_font   = pygame.font.SysFont("Consolas", 72, bold=True)
         title_surf = big_font.render("PAUSED", True, C.COLOR_TEXT_PRIMARY)
         hint_surf  = self.font_small.render(
-            "SPACE to resume  |  TAB to change speed  |  F11 to toggle fullscreen",
+            "SPACE to resume  |  TAB to change speed  |  F11 to toggle fullscreen  |  ESC for menu",
             True, C.COLOR_TEXT_DISABLED,
         )
         cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
         self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 24)))
         self.screen.blit(hint_surf,  hint_surf.get_rect(center=(cx, cy + 44)))
+
+    # ------------------------------------------------------------------
+    # Escape menu overlay
+    # ------------------------------------------------------------------
+
+    def _draw_escape_menu(self) -> None:
+        overlay = pygame.Surface((C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 140))
+        self.screen.blit(overlay, (0, 0))
+
+        cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
+
+        # Box
+        box_w, box_h = 400, 280
+        box_rect = pygame.Rect(cx - box_w // 2, cy - box_h // 2, box_w, box_h)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, box_rect, border_radius=8)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, box_rect, width=2, border_radius=8)
+
+        # Title
+        title_surf = self.font_large.render("MENU", True, C.COLOR_TEXT_PRIMARY)
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 90)))
+
+        # Buttons
+        btn_w, btn_h = 280, 56
+        gap = 20
+        btn_y_continue = cy - btn_h - gap // 2 + 30
+        btn_y_exit     = cy + gap // 2 + 30
+
+        btn_continue = Button(
+            rect=pygame.Rect(cx - btn_w // 2, btn_y_continue, btn_w, btn_h),
+            label="Continue",
+            action="continue",
+            font=self.font_med,
+        )
+        btn_exit = Button(
+            rect=pygame.Rect(cx - btn_w // 2, btn_y_exit, btn_w, btn_h),
+            label="Exit Game",
+            action="exit",
+            font=self.font_med,
+        )
+        self._menu_buttons = [btn_continue, btn_exit]
+        btn_continue.draw(self.screen)
+        btn_exit.draw(self.screen)
+
+        hint_surf = self.font_small.render("ESC to resume", True, C.COLOR_TEXT_DISABLED)
+        self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, cy + box_h // 2 - 20)))
 
     # ------------------------------------------------------------------
     # Endgame overlay
