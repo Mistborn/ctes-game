@@ -69,6 +69,17 @@ class GameState:
     researched_tech_ids: List[str] = field(default_factory=list)
 
     # -------------------------------------------------------------------
+    # Roguelite / meta
+    # -------------------------------------------------------------------
+    run_number: int = 1
+    tribute_schedule: List[int] = field(default_factory=list)
+    tributes_paid: int = 0
+    total_gold_earned: float = 0.0
+    # Per-run multipliers set by meta upgrades (1.0 = no effect)
+    food_consumption_mult: float = 1.0
+    market_gold_bonus_mult: float = 1.0
+
+    # -------------------------------------------------------------------
     # Game status
     # -------------------------------------------------------------------
     status: GameStatus = GameStatus.PLAYING
@@ -102,6 +113,12 @@ class GameState:
             "status": self.status.value,
             "paused": self.paused,
             "researched_tech_ids": list(self.researched_tech_ids),
+            "run_number": self.run_number,
+            "tribute_schedule": list(self.tribute_schedule),
+            "tributes_paid": self.tributes_paid,
+            "total_gold_earned": self.total_gold_earned,
+            "food_consumption_mult": self.food_consumption_mult,
+            "market_gold_bonus_mult": self.market_gold_bonus_mult,
         }
 
     def to_json(self) -> str:
@@ -132,6 +149,12 @@ class GameState:
             status=GameStatus(d["status"]),
             paused=d.get("paused", False),
             researched_tech_ids=list(d.get("researched_tech_ids", [])),
+            run_number=d.get("run_number", 1),
+            tribute_schedule=list(d.get("tribute_schedule", [])),
+            tributes_paid=d.get("tributes_paid", 0),
+            total_gold_earned=d.get("total_gold_earned", 0.0),
+            food_consumption_mult=d.get("food_consumption_mult", 1.0),
+            market_gold_bonus_mult=d.get("market_gold_bonus_mult", 1.0),
         )
         return gs
 

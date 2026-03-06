@@ -238,3 +238,93 @@ COLOR_WIN = (100, 220, 120)
 COLOR_LOSE = (220, 60, 60)
 COLOR_BOTTOM_BAR = (22, 18, 12)
 COLOR_SPEED_HIGHLIGHT = (200, 170, 80)
+COLOR_WINTER = (150, 200, 255)        # icy blue for winter label
+COLOR_TRIBUTE = (255, 160, 50)        # orange for tribute countdown
+COLOR_LP = (180, 120, 255)            # purple for LP
+COLOR_SEASON_NORMAL = (120, 160, 100) # muted green for non-winter seasons
+COLOR_UNLOCK = (200, 170, 80)         # gold-ish for unlocked upgrades
+
+# ---------------------------------------------------------------------------
+# Tribute system
+# ---------------------------------------------------------------------------
+TRIBUTE_INTERVAL_TICKS = 200
+TRIBUTE_BASE = 20
+TRIBUTE_RUN_INCREMENT = 15
+TRIBUTE_ESCALATION = 20
+
+# ---------------------------------------------------------------------------
+# Seasons
+# ---------------------------------------------------------------------------
+SEASON_CYCLE_TICKS = 400
+WINTER_LENGTH_TICKS = 60
+WINTER_FOOD_MULT = 2.0
+
+# ---------------------------------------------------------------------------
+# Legacy Points
+# ---------------------------------------------------------------------------
+LP_TICKS_DIVISOR = 20
+LP_GOLD_DIVISOR = 15
+LP_PER_TRIBUTE = 15
+LP_WIN_BONUS = 50
+
+# ---------------------------------------------------------------------------
+# Meta upgrades
+# ---------------------------------------------------------------------------
+UPGRADES = [
+    {
+        "id": "extra_colonists_1",
+        "name": "Experienced Settlers",
+        "description": "Start with 6 colonists",
+        "lp_cost": 10,
+        "requires": None,
+    },
+    {
+        "id": "extra_colonists_2",
+        "name": "Growing Community",
+        "description": "Start with 7 colonists",
+        "lp_cost": 20,
+        "requires": "extra_colonists_1",
+    },
+    {
+        "id": "more_food_1",
+        "name": "Stockpiled Supplies",
+        "description": "Start with 80 food",
+        "lp_cost": 10,
+        "requires": None,
+    },
+    {
+        "id": "more_food_2",
+        "name": "Well-Stocked",
+        "description": "Start with 120 food",
+        "lp_cost": 20,
+        "requires": "more_food_1",
+    },
+    {
+        "id": "hearty_colonists",
+        "name": "Hearty Colonists",
+        "description": "Food consumption -10%",
+        "lp_cost": 20,
+        "requires": None,
+    },
+    {
+        "id": "free_sawmill",
+        "name": "Pre-built Workshop",
+        "description": "Start with a free Sawmill",
+        "lp_cost": 25,
+        "requires": None,
+    },
+    {
+        "id": "trade_connections",
+        "name": "Trade Connections",
+        "description": "Markets +15% gold",
+        "lp_cost": 20,
+        "requires": None,
+    },
+    {
+        "id": "veteran_memory",
+        "name": "Veteran Memory",
+        "description": "Carry last researched tech into next run",
+        "lp_cost": 40,
+        "requires": None,
+    },
+]

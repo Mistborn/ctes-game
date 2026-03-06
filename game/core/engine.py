@@ -11,7 +11,7 @@ Public API:
 from __future__ import annotations
 
 import copy
-from typing import Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from game.core import config
 from game.core.entities import (
@@ -26,17 +26,52 @@ from game.core.entities import (
 )
 from game.core.state import GameState
 
+if TYPE_CHECKING:
+    from game.meta.progression import MetaState
+
 
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
 
-def new_game() -> GameState:
-    """Return a freshly initialised GameState with starting values."""
+def new_game(meta: Optional["MetaState"] = None) -> GameState:
+    """Return a freshly initialised GameState, applying meta upgrades if provided."""
     state = GameState()
 
+    # Apply meta context
+    if meta is not None:
+        state.run_number = meta.run_number
+        unlocked = set(meta.unlocked_upgrades)
+
+        # Starting colonist count (use highest tier only)
+        if "extra_colonists_2" in unlocked:
+            starting_colonists = 7
+        elif "extra_colonists_1" in unlocked:
+            starting_colonists = 6
+        else:
+            starting_colonists = config.STARTING_COLONISTS
+
+        # Starting food (use highest tier only)
+        if "more_food_2" in unlocked:
+            state.food = 120.0
+        elif "more_food_1" in unlocked:
+            state.food = 80.0
+
+        # Hearty colonists: -10% food consumption
+        if "hearty_colonists" in unlocked:
+            state.food_consumption_mult = 0.9
+
+        # Trade connections: +15% market gold
+        if "trade_connections" in unlocked:
+            state.market_gold_bonus_mult = 1.15
+    else:
+        starting_colonists = config.STARTING_COLONISTS
+
+    # Tribute schedule for this run
+    state.tribute_schedule = _compute_tribute_schedule(state.run_number)
+
     # Spawn starting colonists
-    for _ in range(config.STARTING_COLONISTS):
+    for _ in range(starting_colonists):
         _add_colonist(state)
 
     # Build the two starting buildings
@@ -48,9 +83,24 @@ def new_game() -> GameState:
     state.next_building_id += 1
     state.buildings.append(mill)
 
-    # Distribute starting workers: 3 on farm, 2 on lumber mill
+    # Distribute starting workers: 3 on farm, 2 on lumber mill (capped to actual colonists)
     _assign_colonist_to_building(state, farm.id, count=3)
     _assign_colonist_to_building(state, mill.id, count=2)
+
+    # Free sawmill upgrade
+    if meta is not None and "free_sawmill" in set(meta.unlocked_upgrades):
+        sawmill = Building(id=state.next_building_id, building_type=BuildingType.SAWMILL)
+        state.next_building_id += 1
+        state.buildings.append(sawmill)
+
+    # Veteran memory: carry the last researched tech from the previous run
+    if (
+        meta is not None
+        and "veteran_memory" in set(meta.unlocked_upgrades)
+        and meta.carried_tech_id
+        and meta.carried_tech_id not in state.researched_tech_ids
+    ):
+        state.researched_tech_ids.append(meta.carried_tech_id)
 
     state.peak_colonists = state.colonist_count
     return state
@@ -105,7 +155,15 @@ def tick(state: GameState) -> GameState:
     state.stone_rate  = state.stone  - stone_before
     state.planks_rate = state.planks - planks_before
 
-    # 5. Colonist arrival check
+    # 5. Track total gold produced (for LP; measured before tribute deduction)
+    if state.gold_rate > 0:
+        state.total_gold_earned += state.gold_rate
+
+    # 6. Tribute demand (every TRIBUTE_INTERVAL_TICKS, skipping tick 0)
+    if state.tick > 0 and state.tick % config.TRIBUTE_INTERVAL_TICKS == 0:
+        _check_tribute(state)
+
+    # 7. Colonist arrival check
     if state.ticks_since_last_arrival_check >= config.COLONIST_ARRIVAL_INTERVAL_TICKS:
         state.ticks_since_last_arrival_check = 0
         if state.food > config.COLONIST_ARRIVAL_MIN_FOOD_SURPLUS:
@@ -113,7 +171,7 @@ def tick(state: GameState) -> GameState:
             if state.colonist_count > state.peak_colonists:
                 state.peak_colonists = state.colonist_count
 
-    # 6. Win / Lose checks
+    # 8. Win / Lose checks
     _check_endgame(state)
 
     return state
@@ -162,7 +220,7 @@ def _process_production(state: GameState) -> None:
     passive_mult = config.RESEARCH_GUILD_HALLS_PASSIVE_MULT if "guild_halls" in researched else 1.0
     farm_mult    = config.RESEARCH_CROP_ROTATION_FARM_MULT  if "crop_rotation" in researched else 1.0
     tool_mult    = config.RESEARCH_REINFORCED_TOOLS_MULT    if "reinforced_tools" in researched else 1.0
-    market_mult  = config.RESEARCH_TRADE_ROUTES_MARKET_MULT if "trade_routes" in researched else 1.0
+    market_mult  = (config.RESEARCH_TRADE_ROUTES_MARKET_MULT if "trade_routes" in researched else 1.0) * state.market_gold_bonus_mult
     sawmill_mult = config.RESEARCH_STONE_MASONRY_SAWMILL_MULT if "stone_masonry" in researched else 1.0
 
     for building in state.buildings:
@@ -243,14 +301,18 @@ def _process_consumption(state: GameState) -> None:
     """
     Each colonist consumes food. If food runs out colonists starve and die
     (removed from the roster in the order they were added).
+    Winter doubles food consumption.
     """
-    food_needed = state.colonist_count * config.FOOD_PER_COLONIST_PER_TICK
+    food_per_colonist = config.FOOD_PER_COLONIST_PER_TICK * state.food_consumption_mult
+    if _is_winter(state.tick):
+        food_per_colonist *= config.WINTER_FOOD_MULT
+    food_needed = state.colonist_count * food_per_colonist
 
     if state.food >= food_needed:
         state.food -= food_needed
     else:
         # Not enough food — work out how many colonists go unfed
-        fed = int(state.food / config.FOOD_PER_COLONIST_PER_TICK)
+        fed = int(state.food / food_per_colonist) if food_per_colonist > 0 else 0
         starving_count = state.colonist_count - fed
         state.food = 0.0
 
@@ -418,7 +480,52 @@ def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
 # ---------------------------------------------------------------------------
 
 def _check_endgame(state: GameState) -> None:
+    if state.status != GameStatus.PLAYING:
+        return  # already set (e.g. LOSE_TRIBUTE); don't overwrite
     if state.gold >= config.WIN_GOLD_TARGET:
         state.status = GameStatus.WIN
     elif state.colonist_count == 0:
         state.status = GameStatus.LOSE
+
+
+# ---------------------------------------------------------------------------
+# Season / tribute helpers
+# ---------------------------------------------------------------------------
+
+def _is_winter(tick: int) -> bool:
+    return (tick % config.SEASON_CYCLE_TICKS) >= (config.SEASON_CYCLE_TICKS - config.WINTER_LENGTH_TICKS)
+
+
+def get_season(tick: int) -> str:
+    """Return current season name for display."""
+    pos = tick % config.SEASON_CYCLE_TICKS
+    if pos < 100:
+        return "Spring"
+    elif pos < 200:
+        return "Summer"
+    elif pos < config.SEASON_CYCLE_TICKS - config.WINTER_LENGTH_TICKS:
+        return "Autumn"
+    else:
+        return "Winter"
+
+
+def _compute_tribute_schedule(run_number: int) -> list:
+    """Pre-compute tribute amounts for a full run (50 tributes = 10000 ticks)."""
+    return [
+        config.TRIBUTE_BASE
+        + (run_number - 1) * config.TRIBUTE_RUN_INCREMENT
+        + i * config.TRIBUTE_ESCALATION
+        for i in range(50)
+    ]
+
+
+def _check_tribute(state: GameState) -> None:
+    """Deduct tribute or set LOSE_TRIBUTE if the player can't pay."""
+    if state.tributes_paid >= len(state.tribute_schedule):
+        return
+    due = state.tribute_schedule[state.tributes_paid]
+    if state.gold >= due:
+        state.gold -= due
+        state.tributes_paid += 1
+    else:
+        state.status = GameStatus.LOSE_TRIBUTE

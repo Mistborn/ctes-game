@@ -22,6 +22,8 @@ from game.core.entities import (
     GameStatus,
 )
 from game.core.state import GameState
+from game.core.engine import get_season
+from game.meta.progression import compute_lp_earned
 
 
 # ---------------------------------------------------------------------------
@@ -131,14 +133,27 @@ class Renderer:
         self._right_panel_content_height: int = 0
 
     # ------------------------------------------------------------------
+    # Public: reset between runs
+    # ------------------------------------------------------------------
+
+    def reset_for_new_run(self) -> None:
+        """Reset per-run renderer state ready for a fresh run."""
+        self._tick_accumulator = 0.0
+        self._show_escape_menu = False
+        self._was_paused_before_menu = False
+        self._buttons = []
+        self._menu_buttons = []
+
+    # ------------------------------------------------------------------
     # Public: start screen — blocks until the player picks an option
     # ------------------------------------------------------------------
 
-    def show_start_screen(self, saves: list) -> "GameState":
+    def show_start_screen(self, saves: list, meta=None) -> "GameState":
         """
         Display the main-menu / start screen and return the initial GameState.
 
         *saves* is the list returned by ``game.core.save.list_saves()``.
+        *meta* is an optional MetaState; passed to new_game() when starting fresh.
         """
         from game.core import engine
         from game.core.save import load_game
@@ -159,7 +174,7 @@ class Renderer:
                 for btn in self._menu_buttons:
                     result = btn.handle_event(event)
                     if result == "new_game":
-                        return engine.new_game()
+                        return engine.new_game(meta)
                     elif result == "continue" and most_recent_path:
                         return load_game(most_recent_path)
                     elif result == "load_game":
@@ -375,6 +390,34 @@ class Renderer:
             C.COLOR_POSITIVE if food_ok else C.COLOR_TEXT_DISABLED,
             x, y,
         )
+        y += C.LINE_HEIGHT_SMALL
+
+        # Season + tribute
+        y += C.SECTION_GAP
+        self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
+        y += C.DIVIDER_PADDING
+
+        season = get_season(state.tick)
+        season_color = C.COLOR_WINTER if season == "Winter" else C.COLOR_SEASON_NORMAL
+        is_winter = season == "Winter"
+        food_mult_str = f" (food ×{C.WINTER_FOOD_MULT:.0f})" if is_winter else ""
+        self._blit(f"Season: {season}{food_mult_str}", self.font_small, season_color, x, y)
+        y += C.LINE_HEIGHT_SMALL
+
+        if state.tribute_schedule and state.tributes_paid < len(state.tribute_schedule):
+            ticks_into_interval = state.tick % C.TRIBUTE_INTERVAL_TICKS
+            ticks_until = C.TRIBUTE_INTERVAL_TICKS - ticks_into_interval
+            if ticks_into_interval == 0 and state.tick > 0:
+                ticks_until = C.TRIBUTE_INTERVAL_TICKS
+            next_amount = state.tribute_schedule[state.tributes_paid]
+            can_pay = state.gold >= next_amount
+            tribute_color = C.COLOR_TRIBUTE if can_pay else C.COLOR_NEGATIVE
+            self._blit(
+                f"Tribute in {ticks_until}tk: {next_amount}g",
+                self.font_small, tribute_color, x, y,
+            )
+        elif state.tribute_schedule:
+            self._blit("All tributes paid!", self.font_small, C.COLOR_POSITIVE, x, y)
 
     def _draw_resource_row(
         self, label: str, value: float, rate: float, color: tuple, x: int, y: int
@@ -544,6 +587,8 @@ class Renderer:
             status_color = C.COLOR_SPEED_HIGHLIGHT if state.paused else C.COLOR_TEXT_SECONDARY
         elif state.status == GameStatus.WIN:
             status_text, status_color = "YOU WIN!", C.COLOR_WIN
+        elif state.status == GameStatus.LOSE_TRIBUTE:
+            status_text, status_color = "TRIBUTE FAILED", C.COLOR_LOSE
         else:
             status_text, status_color = "GAME OVER", C.COLOR_LOSE
 
@@ -775,21 +820,197 @@ class Renderer:
             title    = "VICTORY!"
             subtitle = f"You accumulated {state.gold:.0f} Gold in {state.tick} ticks!"
             color    = C.COLOR_WIN
+        elif state.status == GameStatus.LOSE_TRIBUTE:
+            title    = "TRIBUTE FAILED"
+            due_idx  = state.tributes_paid
+            due_amt  = state.tribute_schedule[due_idx] if due_idx < len(state.tribute_schedule) else "?"
+            subtitle = f"Could not pay tribute of {due_amt}g on tick {state.tick}."
+            color    = C.COLOR_LOSE
         else:
             title    = "DEFEAT"
             subtitle = f"All colonists perished on tick {state.tick}."
             color    = C.COLOR_LOSE
 
+        lp_earned = compute_lp_earned(state)
+
         big_font   = pygame.font.SysFont("Consolas", 72, bold=True)
         sub_font   = pygame.font.SysFont("Consolas", 28)
         title_surf = big_font.render(title, True, color)
         sub_surf   = sub_font.render(subtitle, True, C.COLOR_TEXT_PRIMARY)
-        hint_surf  = self.font_small.render("Close the window to exit.", True, C.COLOR_TEXT_DISABLED)
+        lp_surf    = sub_font.render(f"Legacy Points earned: +{lp_earned}", True, C.COLOR_LP)
 
         cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
-        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 60)))
-        self.screen.blit(sub_surf,   sub_surf.get_rect(center=(cx, cy + 14)))
-        self.screen.blit(hint_surf,  hint_surf.get_rect(center=(cx, cy + 62)))
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 80)))
+        self.screen.blit(sub_surf,   sub_surf.get_rect(center=(cx, cy - 10)))
+        self.screen.blit(lp_surf,    lp_surf.get_rect(center=(cx, cy + 46)))
+
+        # "Start Next Run" button
+        btn_w, btn_h = 300, 54
+        btn = Button(
+            rect=pygame.Rect(cx - btn_w // 2, cy + 100, btn_w, btn_h),
+            label="Start Next Run",
+            action="start_next_run",
+            font=self.font_large,
+        )
+        self._buttons.append(btn)
+        btn.draw(self.screen)
+
+    # ------------------------------------------------------------------
+    # Between-runs screen — blocking mini-loop
+    # ------------------------------------------------------------------
+
+    def show_between_runs_screen(self, meta, state: GameState, lp_earned: int) -> None:
+        """
+        Show run summary + upgrade shop. Blocks until the player clicks
+        "Start Next Run". Directly mutates meta for upgrade purchases.
+        """
+        while True:
+            self.clock.tick(C.TARGET_FPS)
+
+            # Draw first so buttons exist when we process events next frame
+            self._menu_buttons = []
+            self._draw_between_runs_screen(meta, state, lp_earned)
+            pygame.display.flip()
+
+            # Process events against the buttons built during this draw
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+                for btn in self._menu_buttons:
+                    result = btn.handle_event(event)
+                    if result == "start_next_run":
+                        return
+                    elif isinstance(result, str) and result.startswith("buy:"):
+                        upgrade_id = result[4:]
+                        meta.buy_upgrade(upgrade_id)
+                        meta.save()
+
+    def _draw_between_runs_screen(self, meta, state: GameState, lp_earned: int) -> None:
+        """Render the between-runs summary and upgrade shop."""
+        self.screen.fill(C.COLOR_BG)
+
+        cx = C.WINDOW_WIDTH // 2
+
+        # Title
+        run_label = f"RUN {state.run_number} COMPLETE"
+        title_surf = self.font_large.render(run_label, True, C.COLOR_TEXT_PRIMARY)
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, 44)))
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (100, 80), (C.WINDOW_WIDTH - 100, 80))
+
+        # ---------------------------------------------------------------
+        # Left: Run summary
+        # ---------------------------------------------------------------
+        lx, ly = 160, 110
+        self._blit("RUN SUMMARY", self.font_med, C.COLOR_TEXT_SECONDARY, lx, ly)
+        ly += C.LINE_HEIGHT_MED
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (lx, ly), (lx + 560, ly))
+        ly += C.DIVIDER_PADDING
+
+        if state.status == GameStatus.WIN:
+            outcome_text, outcome_color = "VICTORY", C.COLOR_WIN
+        elif state.status == GameStatus.LOSE_TRIBUTE:
+            outcome_text, outcome_color = "TRIBUTE FAILED", C.COLOR_LOSE
+        else:
+            outcome_text, outcome_color = "DEFEAT", C.COLOR_LOSE
+
+        rows = [
+            ("Outcome",        outcome_text,                                outcome_color),
+            ("Ticks survived", str(state.tick),                             C.COLOR_TEXT_PRIMARY),
+            ("Gold produced",  f"{state.total_gold_earned:.0f}",            C.COLOR_GOLD),
+            ("Tributes paid",  str(state.tributes_paid),                    C.COLOR_TEXT_PRIMARY),
+            ("Starvations",    str(state.starvation_events),                C.COLOR_TEXT_PRIMARY),
+        ]
+        for label, value, color in rows:
+            self._blit(f"{label}:", self.font_small, C.COLOR_TEXT_SECONDARY, lx, ly)
+            self._blit(value, self.font_small, color, lx + 240, ly)
+            ly += C.LINE_HEIGHT_SMALL + 6
+
+        ly += C.SECTION_GAP
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (lx, ly), (lx + 560, ly))
+        ly += C.DIVIDER_PADDING
+
+        self._blit(f"LP earned this run:", self.font_med, C.COLOR_TEXT_SECONDARY, lx, ly)
+        self._blit(f"+{lp_earned}", self.font_med, C.COLOR_LP, lx + 300, ly)
+        ly += C.LINE_HEIGHT_MED + 6
+        self._blit(f"Total LP:", self.font_med, C.COLOR_TEXT_SECONDARY, lx, ly)
+        self._blit(str(meta.legacy_points), self.font_med, C.COLOR_LP, lx + 300, ly)
+        ly += C.LINE_HEIGHT_MED + 6
+
+        if "veteran_memory" in meta.unlocked_upgrades and meta.carried_tech_id:
+            from game.core import config as _cfg
+            tech_def = next((t for t in _cfg.RESEARCH_TECHS if t["tech_id"] == meta.carried_tech_id), None)
+            tech_name = tech_def["name"] if tech_def else meta.carried_tech_id
+            self._blit(f"Carrying tech: {tech_name}", self.font_small, C.COLOR_TEXT_SECONDARY, lx, ly)
+            ly += C.LINE_HEIGHT_SMALL
+
+        ly += C.SECTION_GAP
+        self._blit(f"Total runs: {meta.total_runs}  Wins: {meta.total_wins}", self.font_small, C.COLOR_TEXT_DISABLED, lx, ly)
+
+        # ---------------------------------------------------------------
+        # Right: Upgrade shop
+        # ---------------------------------------------------------------
+        rx, ry = 900, 110
+        self._blit("UPGRADES", self.font_med, C.COLOR_TEXT_SECONDARY, rx, ry)
+        lp_surf = self.font_med.render(f"LP: {meta.legacy_points}", True, C.COLOR_LP)
+        self.screen.blit(lp_surf, (rx + 560 - lp_surf.get_width(), ry))
+        ry += C.LINE_HEIGHT_MED
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (rx, ry), (rx + 860, ry))
+        ry += C.DIVIDER_PADDING
+
+        for upgrade in C.UPGRADES:
+            uid      = upgrade["id"]
+            name     = upgrade["name"]
+            desc     = upgrade["description"]
+            cost     = upgrade["lp_cost"]
+            requires = upgrade["requires"]
+
+            is_unlocked   = uid in meta.unlocked_upgrades
+            req_met       = requires is None or requires in meta.unlocked_upgrades
+            can_afford    = meta.legacy_points >= cost
+            req_name      = None
+            if requires:
+                req_def  = next((u for u in C.UPGRADES if u["id"] == requires), None)
+                req_name = req_def["name"] if req_def else requires
+
+            if is_unlocked:
+                self._blit(f"[✓] {name}", self.font_small, C.COLOR_UNLOCK, rx, ry)
+                self._blit(f"    {desc}", self.font_small, C.COLOR_TEXT_DISABLED, rx, ry + C.LINE_HEIGHT_SMALL)
+                ry += C.LINE_HEIGHT_SMALL * 2 + 10
+            elif not req_met:
+                self._blit(f"[?] {name}  ({cost} LP)", self.font_small, C.COLOR_TEXT_DISABLED, rx, ry)
+                self._blit(f"    Requires: {req_name}", self.font_small, C.COLOR_TEXT_DISABLED, rx, ry + C.LINE_HEIGHT_SMALL)
+                ry += C.LINE_HEIGHT_SMALL * 2 + 10
+            else:
+                btn_rect = pygame.Rect(rx, ry, 700, C.BUILD_BTN_HEIGHT)
+                lp_label = f"[{cost} LP]  {name} — {desc}"
+                btn = Button(
+                    rect=btn_rect,
+                    label=lp_label,
+                    action=f"buy:{uid}",
+                    enabled=can_afford,
+                    font=self.font_small,
+                )
+                self._menu_buttons.append(btn)
+                btn.draw(self.screen)
+                ry += C.BUILD_BTN_HEIGHT + 10
+
+        # ---------------------------------------------------------------
+        # "Start Next Run" button — bottom-centre
+        # ---------------------------------------------------------------
+        btn_w, btn_h = 340, 60
+        start_btn = Button(
+            rect=pygame.Rect(cx - btn_w // 2, C.WINDOW_HEIGHT - 110, btn_w, btn_h),
+            label="Start Next Run",
+            action="start_next_run",
+            font=self.font_large,
+        )
+        self._menu_buttons.append(start_btn)
+        start_btn.draw(self.screen)
+
+        hint = self.font_small.render("Buy upgrades above, then start the next run", True, C.COLOR_TEXT_DISABLED)
+        self.screen.blit(hint, hint.get_rect(center=(cx, C.WINDOW_HEIGHT - 40)))
 
     # ------------------------------------------------------------------
     # Helpers

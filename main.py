@@ -105,49 +105,79 @@ def main() -> None:
     from game.core import config, engine
     from game.core import save as game_save
     from game.core.entities import GameStatus
+    from game.meta.progression import MetaState
     from game.renderer.display import Renderer
 
+    meta = MetaState.load()
     renderer = Renderer()
 
-    if args.new_game:
-        state = engine.new_game()
-    else:
-        saves = game_save.list_saves()
-        state = renderer.show_start_screen(saves)
-
-    last_autosave_tick: int = state.tick  # don't immediately autosave on load
+    first_run = True
 
     while True:
-        dt = renderer.tick_dt()
-
-        # Collect player actions (may include "save_and_exit" / "exit_no_save" sentinels)
-        actions = renderer.handle_events(state)
-        for action in actions:
-            if action == "save_and_exit":
-                game_save.save_game(state)   # timestamped manual save
-                pygame.quit()
-                sys.exit()
-            elif action == "exit_no_save":
-                pygame.quit()
-                sys.exit()
+        # Start-screen only on the very first run; subsequent runs skip it
+        if first_run:
+            if args.new_game:
+                state = engine.new_game(meta)
             else:
-                engine.apply_action(state, action)
+                saves = game_save.list_saves()
+                state = renderer.show_start_screen(saves, meta=meta)
+            first_run = False
+        else:
+            state = engine.new_game(meta)
 
-        # Advance simulation if enough real time has passed
-        if renderer.should_tick(state, dt):
-            engine.tick(state)
+        renderer.reset_for_new_run()
+        last_autosave_tick: int = state.tick
+        start_next_run = False
 
-            # Autosave every AUTOSAVE_INTERVAL_TICKS ticks
-            if (
-                state.tick > 0
-                and state.tick % config.AUTOSAVE_INTERVAL_TICKS == 0
-                and state.tick != last_autosave_tick
-            ):
-                game_save.autosave_game(state)
-                last_autosave_tick = state.tick
+        # ---------------------------------------------------------------
+        # Inner game loop — one run
+        # ---------------------------------------------------------------
+        while not start_next_run:
+            dt = renderer.tick_dt()
 
-        # Render
-        renderer.draw(state)
+            # Collect player actions
+            actions = renderer.handle_events(state)
+            for action in actions:
+                if action == "save_and_exit":
+                    game_save.save_game(state)
+                    pygame.quit()
+                    sys.exit()
+                elif action == "exit_no_save":
+                    pygame.quit()
+                    sys.exit()
+                elif action == "start_next_run":
+                    start_next_run = True
+                    break
+                else:
+                    engine.apply_action(state, action)
+
+            if start_next_run:
+                break
+
+            # Advance simulation if enough real time has passed
+            if renderer.should_tick(state, dt):
+                engine.tick(state)
+
+                # Autosave every AUTOSAVE_INTERVAL_TICKS ticks
+                if (
+                    state.tick > 0
+                    and state.tick % config.AUTOSAVE_INTERVAL_TICKS == 0
+                    and state.tick != last_autosave_tick
+                ):
+                    game_save.autosave_game(state)
+                    last_autosave_tick = state.tick
+
+            # Render
+            renderer.draw(state)
+
+        # ---------------------------------------------------------------
+        # Run ended — update meta, show between-runs screen
+        # ---------------------------------------------------------------
+        lp_earned = meta.end_run(state)
+        meta.save()
+        renderer.show_between_runs_screen(meta, state, lp_earned)
+        meta.run_number += 1
+        meta.save()
 
 
 if __name__ == "__main__":
