@@ -24,8 +24,8 @@ AUTOSAVE_INTERVAL_TICKS = 1000
 # ---------------------------------------------------------------------------
 # Starting Resources
 # ---------------------------------------------------------------------------
-STARTING_FOOD = 50
-STARTING_WOOD = 20
+STARTING_FOOD = 35
+STARTING_WOOD = 8
 STARTING_GOLD = 0
 STARTING_STONE = 0
 STARTING_PLANKS = 0
@@ -51,10 +51,10 @@ RECRUIT_CITIZEN_FOOD_COST = 100
 # Building Production Rates (per worker per tick)
 # ---------------------------------------------------------------------------
 # Farm: food produced per assigned worker per tick
-FARM_FOOD_PER_WORKER_PER_TICK = 1.5
+FARM_FOOD_PER_WORKER_PER_TICK = 1.2
 
 # Lumber Mill: wood produced per assigned worker per tick
-LUMBERMILL_WOOD_PER_WORKER_PER_TICK = 1.2
+LUMBERMILL_WOOD_PER_WORKER_PER_TICK = 0.8
 
 # Passive income (produced with 0 workers, per building, per tick)
 FARM_PASSIVE_FOOD_PER_TICK = 0.3
@@ -82,9 +82,9 @@ SAWMILL_PLANKS_PER_WORKER_PER_TICK = 0.5
 # ---------------------------------------------------------------------------
 FARM_BUILD_COST_WOOD = 15
 LUMBERMILL_BUILD_COST_WOOD = 20
-MARKET_BUILD_COST_WOOD = 30
-QUARRY_BUILD_COST_WOOD = 25
-SAWMILL_BUILD_COST_WOOD = 35
+MARKET_BUILD_COST_WOOD = 50
+QUARRY_BUILD_COST_WOOD = 30
+SAWMILL_BUILD_COST_WOOD = 40
 
 # ---------------------------------------------------------------------------
 # Building Worker Capacity

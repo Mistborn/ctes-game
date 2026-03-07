@@ -318,6 +318,9 @@ def _process_consumption(state: GameState) -> None:
 
 def _remove_starving_colonists(state: GameState, count: int) -> None:
     """Remove `count` colonists, preferring idle ones first."""
+    # Purge any None entries that LLM-generated strategy code may have injected
+    state.colonists = [c for c in state.colonists if c is not None]
+
     to_remove: list[Colonist] = []
 
     # Collect idle colonists first

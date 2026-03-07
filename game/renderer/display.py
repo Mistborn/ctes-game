@@ -176,6 +176,9 @@ class Renderer:
                 for btn in self._menu_buttons:
                     result = btn.handle_event(event)
                     if result == "new_game":
+                        if meta is not None:
+                            meta.reset()
+                            meta.save()
                         return engine.new_game(meta)
                     elif result == "continue" and most_recent_path:
                         return load_game(most_recent_path)

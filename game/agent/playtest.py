@@ -60,12 +60,13 @@ def strategy_food_first(state: GameState) -> None:
     )
     surplus_rate = farm_production - consumption_per_tick
 
-    if surplus_rate < SURPLUS_TARGET / 10:
+    # Surplus threshold: positive food rate is enough to call it healthy
+    surplus_threshold = state.colonist_count * config.FOOD_PER_COLONIST_PER_TICK * 0.2
+    if surplus_rate < surplus_threshold:
         # Need more food: move an idle colonist to the first farm with space
         _try_add_worker(state, BuildingType.FARM)
     else:
-        # Surplus is healthy — build economy
-        # Build a Lumber Mill if we don't have a dedicated wood source for building
+        # Surplus is healthy - build economy
         lumber_mills = [b for b in state.buildings if b.building_type == BuildingType.LUMBER_MILL]
         if not lumber_mills and state.wood >= config.LUMBERMILL_BUILD_COST_WOOD:
             engine.apply_action(state, ActionBuildBuilding(BuildingType.LUMBER_MILL))
@@ -82,7 +83,10 @@ def strategy_food_first(state: GameState) -> None:
             engine.apply_action(state, ActionBuildBuilding(BuildingType.MARKET))
             return
 
-        # Staff markets
+        # Staff markets - move a lumber worker over if no idle colonists available
+        total_market_workers = sum(b.workers_assigned for b in markets)
+        if markets and total_market_workers < 1 and state.idle_colonists == 0:
+            _try_move_worker(state, BuildingType.LUMBER_MILL, BuildingType.MARKET)
         for b in state.buildings:
             if b.building_type == BuildingType.MARKET:
                 _try_add_worker_to(state, b.id, BuildingType.MARKET)
@@ -118,6 +122,10 @@ def strategy_production_rush(state: GameState) -> None:
         engine.apply_action(state, ActionBuildBuilding(BuildingType.MARKET))
         return
 
+    markets2 = [b for b in state.buildings if b.building_type == BuildingType.MARKET]
+    total_market_workers = sum(b.workers_assigned for b in markets2)
+    if markets2 and total_market_workers < 1 and state.idle_colonists == 0:
+        _try_move_worker(state, BuildingType.LUMBER_MILL, BuildingType.MARKET)
     for b in state.buildings:
         if b.building_type == BuildingType.MARKET:
             _try_add_worker_to(state, b.id, BuildingType.MARKET)
@@ -156,13 +164,17 @@ def strategy_balanced(state: GameState) -> None:
         if added:
             return
 
+    # No idle colonists - if market exists but has no workers, move one from lumber
+    markets_b = [b for b in state.buildings if b.building_type == BuildingType.MARKET]
+    if markets_b and counts.get(BuildingType.MARKET, 0) < 1 and state.idle_colonists == 0:
+        _try_move_worker(state, BuildingType.LUMBER_MILL, BuildingType.MARKET)
+
 
 def strategy_gold_rush(state: GameState) -> None:
     """
     Get to the Market as fast as possible and max out gold production.
-    Sacrifice food security to rush wood for construction.
+    Actively moves workers from lumber mill to market once gold income is needed.
     """
-    # Keep only 1 farmer as food floor
     farm_workers = sum(
         b.workers_assigned for b in state.buildings if b.building_type == BuildingType.FARM
     )
@@ -170,30 +182,33 @@ def strategy_gold_rush(state: GameState) -> None:
         _try_add_worker(state, BuildingType.FARM)
         return
 
-    # Rush a Lumber Mill immediately
     lumber_mills = [b for b in state.buildings if b.building_type == BuildingType.LUMBER_MILL]
     if not lumber_mills and state.wood >= config.LUMBERMILL_BUILD_COST_WOOD:
         engine.apply_action(state, ActionBuildBuilding(BuildingType.LUMBER_MILL))
         return
 
-    # Max out lumber mill workers to get wood fast
-    for b in state.buildings:
-        if b.building_type == BuildingType.LUMBER_MILL:
-            _try_add_worker_to(state, b.id, BuildingType.LUMBER_MILL)
-
-    # Build Market ASAP
     markets = [b for b in state.buildings if b.building_type == BuildingType.MARKET]
+
+    # Staff lumber mills while saving for market
+    if not markets:
+        for b in state.buildings:
+            if b.building_type == BuildingType.LUMBER_MILL:
+                _try_add_worker_to(state, b.id, BuildingType.LUMBER_MILL)
+
     if not markets and state.wood >= config.MARKET_BUILD_COST_WOOD:
         engine.apply_action(state, ActionBuildBuilding(BuildingType.MARKET))
         return
 
-    # Max out Market workers
-    for b in state.buildings:
-        if b.building_type == BuildingType.MARKET:
+    if markets:
+        # Move workers from lumber mill → market until markets are well-staffed
+        total_market_workers = sum(b.workers_assigned for b in markets)
+        if total_market_workers < 1 and state.idle_colonists == 0:
+            _try_move_worker(state, BuildingType.LUMBER_MILL, BuildingType.MARKET)
+        for b in markets:
             _try_add_worker_to(state, b.id, BuildingType.MARKET)
 
-    # Build more Markets if we have wood
-    if len(markets) < 2 and state.wood >= config.MARKET_BUILD_COST_WOOD + 10:
+    # Build a second Market once we have surplus wood
+    if len(markets) == 1 and state.wood >= config.MARKET_BUILD_COST_WOOD + 10:
         engine.apply_action(state, ActionBuildBuilding(BuildingType.MARKET))
 
 
@@ -384,6 +399,16 @@ def _try_add_worker_to(state: GameState, building_id: int, btype: BuildingType) 
     return False
 
 
+def _try_move_worker(state: GameState, from_btype: BuildingType, to_btype: BuildingType) -> bool:
+    """Remove one worker from the first from_btype building, then assign to to_btype."""
+    for b in state.buildings:
+        if b.building_type == from_btype and b.workers_assigned > 0:
+            engine.apply_action(state, ActionAssignWorker(b.id, -1))
+            _try_add_worker(state, to_btype)
+            return True
+    return False
+
+
 # ---------------------------------------------------------------------------
 # LLM Evaluator — requires `anthropic` package
 # An LLM writes a new Python strategy function at each checkpoint.
@@ -391,6 +416,8 @@ def _try_add_worker_to(state: GameState, building_id: int, btype: BuildingType) 
 
 def _format_state_for_llm(state: GameState) -> str:
     """Return a compact human-readable summary of the current game state."""
+    # Purge any None entries that LLM-generated code may have injected into state
+    state.colonists = [c for c in state.colonists if c is not None]
     lines = [
         f"Tick: {state.tick}  |  Status: {state.status.value.upper()}",
         "",

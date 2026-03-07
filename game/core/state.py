@@ -163,14 +163,14 @@ class GameState:
 
     @property
     def colonist_count(self) -> int:
-        return len(self.colonists)
+        return sum(1 for c in self.colonists if c is not None)
 
     @property
     def idle_colonists(self) -> int:
-        return sum(1 for c in self.colonists if c.assigned_building_id is None)
+        return sum(1 for c in self.colonists if c is not None and c.assigned_building_id is None)
 
     def workers_on(self, building_id: int) -> int:
-        return sum(1 for c in self.colonists if c.assigned_building_id == building_id)
+        return sum(1 for c in self.colonists if c is not None and c.assigned_building_id == building_id)
 
     def building_by_id(self, building_id: int) -> Building | None:
         for b in self.buildings:

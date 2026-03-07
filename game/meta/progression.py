@@ -97,6 +97,15 @@ class MetaState:
     # Run end
     # -----------------------------------------------------------------------
 
+    def reset(self) -> None:
+        """Reset all persistent progression for a true fresh start."""
+        self.run_number = 1
+        self.legacy_points = 0
+        self.unlocked_upgrades = []
+        self.carried_tech_id = None
+        self.total_runs = 0
+        self.total_wins = 0
+
     def end_run(self, state: "GameState") -> int:
         """
         Called after a run ends. Updates legacy_points, total_runs, etc.
