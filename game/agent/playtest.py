@@ -579,7 +579,7 @@ def _build_system_prompt(checkpoint_ticks: int) -> str:
         "  def strategy(state) -> None:",
         "      # called once per tick after engine.tick(); act via engine.apply_action()",
         "",
-        f"Win: gold >= {config.WIN_GOLD_TARGET_BASE} (run 1), increasing by {config.WIN_GOLD_TARGET_RUN_INCREMENT} each run. Lose: all colonists starve.",
+        f"Win: gold >= {config.WIN_GOLD_TARGET_BASE} (run 1), {config.WIN_GOLD_TARGET_RUN2} (run 2), x{config.WIN_GOLD_TARGET_RUN_MULTIPLIER} each run after. Lose: all colonists starve.",
     ])
 
 
@@ -695,32 +695,23 @@ def _write_markdown_log(
     print(f"  Log written to: {log_path}")
 
 
-def run_llm_agent(
-    model: str = "claude-sonnet-4-6",
-    checkpoint_ticks: int = 200,
-    num_checkpoints: int = 20,
-    log_path: str | None = None,
+def _run_llm_agent_one_run(
+    client,
+    model: str,
+    checkpoint_ticks: int,
+    num_checkpoints: int,
+    meta: "MetaState",
+    log_path: str,
 ) -> MetricsDict:
-    """
-    Run one game driven by an LLM that writes a new Python strategy function
-    at each checkpoint. Requires ANTHROPIC_API_KEY environment variable.
-    Returns a MetricsDict (same schema as run_once).
-    """
-    import anthropic
-    import datetime
-
-    if log_path is None:
-        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_path = f"llm_agent_{ts}.md"
-
-    client = anthropic.Anthropic()
-    state = engine.new_game()
+    """Run a single game with the LLM agent. Returns metrics for that run."""
+    state = engine.new_game(meta)
     entries: List[Dict] = []
 
     print(f"\n{'=' * 72}")
     print(
-        f"  LLM Agent  |  model={model}  |  "
-        f"{num_checkpoints} checkpoints x {checkpoint_ticks} ticks"
+        f"  LLM Agent — Run {meta.run_number}  |  model={model}  |  "
+        f"{num_checkpoints} checkpoints x {checkpoint_ticks} ticks  |  "
+        f"target: {state.win_gold_target} gold"
     )
     print("=" * 72)
 
@@ -781,7 +772,7 @@ def run_llm_agent(
 
     _write_markdown_log(log_path, entries, state, model, checkpoint_ticks)
     print(f"\n{'=' * 72}")
-    print(f"  LLM Agent complete. Status: {state.status.value.upper()}")
+    print(f"  Run {meta.run_number} complete. Status: {state.status.value.upper()}  (tick {state.tick})")
     print("=" * 72 + "\n")
 
     return {
@@ -794,6 +785,47 @@ def run_llm_agent(
         "final_gold": state.gold,
         "won": 1.0 if state.status == GameStatus.WIN else 0.0,
     }
+
+
+def run_llm_agent(
+    model: str = "claude-sonnet-4-6",
+    checkpoint_ticks: int = 200,
+    num_checkpoints: int = 20,
+    log_path: str | None = None,
+    num_runs: int = 1,
+) -> MetricsDict:
+    """
+    Run one or more games driven by an LLM that writes a new Python strategy function
+    at each checkpoint. Requires ANTHROPIC_API_KEY environment variable.
+    If num_runs > 1, continues to the next run only if the previous one was won.
+    Returns metrics for the final run.
+    """
+    import anthropic
+    import datetime
+
+    client = anthropic.Anthropic()
+    from game.meta.progression import MetaState
+    meta = MetaState()
+
+    last_metrics: MetricsDict = {}
+    for run_idx in range(num_runs):
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_log = log_path if (num_runs == 1 and log_path) else f"llm_agent_run{meta.run_number}_{ts}.md"
+
+        metrics = _run_llm_agent_one_run(
+            client, model, checkpoint_ticks, num_checkpoints, meta, run_log
+        )
+        last_metrics = metrics
+
+        if metrics["won"] != 1.0:
+            print(f"  Run {meta.run_number} lost — stopping multi-run sequence.")
+            break
+
+        meta.run_number += 1
+        if run_idx + 1 < num_runs:
+            print(f"  Starting run {meta.run_number} (target: {round(config.WIN_GOLD_TARGET_RUN2 * config.WIN_GOLD_TARGET_RUN_MULTIPLIER ** (meta.run_number - 2))} gold)...\n")
+
+    return last_metrics
 
 
 # ---------------------------------------------------------------------------

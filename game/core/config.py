@@ -101,7 +101,8 @@ SAWMILL_MAX_WORKERS = 4
 # ---------------------------------------------------------------------------
 # Gold required to win — scales up each run
 WIN_GOLD_TARGET_BASE = 500
-WIN_GOLD_TARGET_RUN_INCREMENT = 100
+WIN_GOLD_TARGET_RUN2 = 2000
+WIN_GOLD_TARGET_RUN_MULTIPLIER = 3.0  # applied each run after run 2
 # All colonists dead → lose (handled by colonist count reaching 0)
 
 # ---------------------------------------------------------------------------
@@ -252,9 +253,7 @@ WINTER_FOOD_MULT = 2.0
 # ---------------------------------------------------------------------------
 # Legacy Points
 # ---------------------------------------------------------------------------
-LP_TICKS_DIVISOR = 20
-LP_GOLD_DIVISOR = 15
-LP_WIN_BONUS = 50
+LP_PER_WIN = 1
 
 # ---------------------------------------------------------------------------
 # Meta upgrades
@@ -264,56 +263,56 @@ UPGRADES = [
         "id": "extra_colonists_1",
         "name": "Experienced Settlers",
         "description": "Start with 6 colonists",
-        "lp_cost": 10,
+        "lp_cost": 1,
         "requires": None,
     },
     {
         "id": "extra_colonists_2",
         "name": "Growing Community",
         "description": "Start with 7 colonists",
-        "lp_cost": 20,
+        "lp_cost": 3,
         "requires": "extra_colonists_1",
     },
     {
         "id": "more_food_1",
         "name": "Stockpiled Supplies",
         "description": "Start with 80 food",
-        "lp_cost": 10,
+        "lp_cost": 1,
         "requires": None,
     },
     {
         "id": "more_food_2",
         "name": "Well-Stocked",
         "description": "Start with 120 food",
-        "lp_cost": 20,
+        "lp_cost": 3,
         "requires": "more_food_1",
     },
     {
         "id": "hearty_colonists",
         "name": "Hearty Colonists",
         "description": "Food consumption -10%",
-        "lp_cost": 20,
+        "lp_cost": 2,
         "requires": None,
     },
     {
         "id": "free_sawmill",
         "name": "Pre-built Workshop",
         "description": "Start with a free Sawmill",
-        "lp_cost": 25,
+        "lp_cost": 2,
         "requires": None,
     },
     {
         "id": "trade_connections",
         "name": "Trade Connections",
         "description": "Markets +15% gold",
-        "lp_cost": 20,
+        "lp_cost": 2,
         "requires": None,
     },
     {
         "id": "veteran_memory",
         "name": "Veteran Memory",
         "description": "Carry last researched tech into next run",
-        "lp_cost": 40,
+        "lp_cost": 3,
         "requires": None,
     },
 ]

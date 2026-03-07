@@ -21,14 +21,10 @@ META_SAVE_PATH = Path("meta_save.json")
 
 
 def compute_lp_earned(state: "GameState") -> int:
-    """Return Legacy Points earned for a completed run (win or lose)."""
+    """Return Legacy Points earned for a completed run. Wins give 1 LP, losses give 0."""
     from game.core.entities import GameStatus
 
-    lp = state.tick // config.LP_TICKS_DIVISOR
-    lp += int(state.total_gold_earned) // config.LP_GOLD_DIVISOR
-    if state.status == GameStatus.WIN:
-        lp += config.LP_WIN_BONUS
-    return lp
+    return config.LP_PER_WIN if state.status == GameStatus.WIN else 0
 
 
 @dataclass

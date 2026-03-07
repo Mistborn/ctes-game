@@ -82,6 +82,12 @@ def main() -> None:
         default=None,
         help="(llm-agent) Output log file path (default: auto-named).",
     )
+    parser.add_argument(
+        "--num-runs",
+        type=int,
+        default=1,
+        help="(llm-agent) Number of consecutive runs to attempt (default: 1).",
+    )
     args = parser.parse_args()
 
     if args.llm_agent:
@@ -91,6 +97,7 @@ def main() -> None:
             checkpoint_ticks=args.checkpoint_ticks,
             num_checkpoints=args.checkpoints,
             log_path=args.log_file,
+            num_runs=args.num_runs,
         )
         return
 

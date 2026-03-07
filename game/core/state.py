@@ -157,7 +157,9 @@ class GameState:
 
     @property
     def win_gold_target(self) -> int:
-        return config.WIN_GOLD_TARGET_BASE + (self.run_number - 1) * config.WIN_GOLD_TARGET_RUN_INCREMENT
+        if self.run_number == 1:
+            return config.WIN_GOLD_TARGET_BASE
+        return round(config.WIN_GOLD_TARGET_RUN2 * config.WIN_GOLD_TARGET_RUN_MULTIPLIER ** (self.run_number - 2))
 
     @property
     def colonist_count(self) -> int:
