@@ -149,6 +149,12 @@ RESEARCH_TECHS = [
         "description": "Sawmills produce 30% more planks",
         "gold_cost": 200,
     },
+    {
+        "tech_id": "cartography",
+        "name": "Cartography",
+        "description": "Unlocks the World Map — explore hexes for one-time rewards",
+        "gold_cost": 150,
+    },
 ]
 
 # Multipliers applied per tech
@@ -242,6 +248,55 @@ COLOR_WINTER = (150, 200, 255)        # icy blue for winter label
 COLOR_LP = (180, 120, 255)            # purple for LP
 COLOR_SEASON_NORMAL = (120, 160, 100) # muted green for non-winter seasons
 COLOR_UNLOCK = (200, 170, 80)         # gold-ish for unlocked upgrades
+
+# ---------------------------------------------------------------------------
+# Hex World Map
+# ---------------------------------------------------------------------------
+HEX_MAP_RADIUS = 4
+
+# Exploration cost per ring (resource name -> amount)
+HEX_EXPLORE_COST_BY_RING = {
+    1: {"wood": 20},
+    2: {"wood": 30, "stone": 15},
+    3: {"wood": 40, "stone": 25, "gold": 30},
+    4: {"wood": 50, "stone": 30, "gold": 60, "planks": 20},
+}
+
+# Weighted random terrain generation (terrain -> weight)
+HEX_TERRAIN_WEIGHTS = {
+    "plains":    30,
+    "forest":    25,
+    "hills":     20,
+    "mountains": 10,
+    "swamp":     10,
+    "ruins":      5,
+}
+
+# One-time resource rewards per terrain type (resource name -> amount)
+HEX_TERRAIN_REWARDS = {
+    "plains":    {"food": 80},
+    "forest":    {"wood": 60, "planks": 15},
+    "hills":     {"stone": 50},
+    "mountains": {"stone": 80, "gold": 20},
+    "swamp":     {"food": 30, "wood": 30},
+    "ruins":     {"gold": 80, "planks": 30},
+    "colony":    {},
+}
+
+# Hex rendering
+HEX_SIZE = 60
+HEX_TERRAIN_COLORS = {
+    "plains":    (100, 160,  70),
+    "forest":    ( 30,  90,  30),
+    "hills":     (130, 110,  70),
+    "mountains": (120, 120, 130),
+    "swamp":     ( 60,  90,  70),
+    "ruins":     (110,  80,  55),
+    "colony":    (190, 140,  45),
+}
+HEX_FOG_COLOR        = (25, 25, 35)
+HEX_FOG_BORDER_COLOR = (60, 60, 85)
+HEX_EXPLORABLE_COLOR = (40, 40, 58)
 
 # ---------------------------------------------------------------------------
 # Seasons

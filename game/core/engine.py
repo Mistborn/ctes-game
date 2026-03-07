@@ -11,12 +11,14 @@ Public API:
 from __future__ import annotations
 
 import copy
+import random
 from typing import TYPE_CHECKING, Optional, Union
 
 from game.core import config
 from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
+    ActionExploreHex,
     ActionRecruitCitizen,
     ActionResearchTech,
     ActionSetSpeed,
@@ -168,7 +170,7 @@ def tick(state: GameState) -> GameState:
 
 def apply_action(
     state: GameState,
-    action: Union[ActionAssignWorker, ActionBuildBuilding, ActionSetSpeed, ActionResearchTech, ActionRecruitCitizen],
+    action: Union[ActionAssignWorker, ActionBuildBuilding, ActionSetSpeed, ActionResearchTech, ActionRecruitCitizen, ActionExploreHex],
 ) -> GameState:
     """Apply a player action to the state. Returns the mutated state."""
     if state.status != GameStatus.PLAYING:
@@ -184,6 +186,8 @@ def apply_action(
         _handle_research_tech(state, action)
     elif isinstance(action, ActionRecruitCitizen):
         _handle_recruit_citizen(state)
+    elif isinstance(action, ActionExploreHex):
+        _handle_explore_hex(state, action)
 
     return state
 
@@ -463,6 +467,9 @@ def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
         return
     state.gold -= cost
     state.researched_tech_ids.append(action.tech_id)
+    # Initialize hex map when cartography is researched
+    if action.tech_id == "cartography" and not state.hex_tiles:
+        _initialize_hex_map(state)
 
 
 def _handle_recruit_citizen(state: GameState) -> None:
@@ -472,6 +479,72 @@ def _handle_recruit_citizen(state: GameState) -> None:
     colonist = _add_colonist(state)
     if state.colonist_count > state.peak_colonists:
         state.peak_colonists = state.colonist_count
+
+
+# ---------------------------------------------------------------------------
+# Hex world map
+# ---------------------------------------------------------------------------
+
+def _ring_distance(q: int, r: int) -> int:
+    return max(abs(q), abs(r), abs(q + r))
+
+
+def _axial_neighbors(q: int, r: int):
+    return [(q + dq, r + dr) for dq, dr in [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)]]
+
+
+def _has_explored_neighbor(state: GameState, q: int, r: int) -> bool:
+    for nq, nr in _axial_neighbors(q, r):
+        tile = state.hex_tiles.get(f"{nq},{nr}")
+        if tile and tile.get("explored"):
+            return True
+    return False
+
+
+def _initialize_hex_map(state: GameState) -> None:
+    terrain_types = list(config.HEX_TERRAIN_WEIGHTS.keys())
+    weights = [config.HEX_TERRAIN_WEIGHTS[t] for t in terrain_types]
+    rng = random.Random(state.run_number * 99991 + 12345)
+
+    radius = config.HEX_MAP_RADIUS
+    for q in range(-radius, radius + 1):
+        for r in range(max(-radius, -q - radius), min(radius, -q + radius) + 1):
+            key = f"{q},{r}"
+            if q == 0 and r == 0:
+                state.hex_tiles[key] = {"terrain": "colony", "explored": True}
+            else:
+                terrain = rng.choices(terrain_types, weights=weights)[0]
+                state.hex_tiles[key] = {"terrain": terrain, "explored": False}
+
+
+def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
+    key = f"{action.q},{action.r}"
+    tile = state.hex_tiles.get(key)
+    if tile is None or tile.get("explored"):
+        return
+
+    ring = _ring_distance(action.q, action.r)
+    if not _has_explored_neighbor(state, action.q, action.r):
+        return
+
+    cost = config.HEX_EXPLORE_COST_BY_RING.get(ring, {})
+    if (state.wood < cost.get("wood", 0) or state.stone < cost.get("stone", 0)
+            or state.gold < cost.get("gold", 0) or state.planks < cost.get("planks", 0)):
+        return
+
+    state.wood   -= cost.get("wood", 0)
+    state.stone  -= cost.get("stone", 0)
+    state.gold   -= cost.get("gold", 0)
+    state.planks -= cost.get("planks", 0)
+
+    tile["explored"] = True
+
+    rewards = config.HEX_TERRAIN_REWARDS.get(tile["terrain"], {})
+    state.food   = min(state.food   + rewards.get("food", 0),   config.FOOD_CAP)
+    state.wood   = min(state.wood   + rewards.get("wood", 0),   config.WOOD_CAP)
+    state.gold   = min(state.gold   + rewards.get("gold", 0),   config.GOLD_CAP)
+    state.stone  = min(state.stone  + rewards.get("stone", 0),  config.STONE_CAP)
+    state.planks = min(state.planks + rewards.get("planks", 0), config.PLANKS_CAP)
 
 
 # ---------------------------------------------------------------------------

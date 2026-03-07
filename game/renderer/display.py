@@ -7,6 +7,7 @@ Never imported by core/. Never writes to GameState — only emits Actions.
 
 from __future__ import annotations
 
+import math
 import pygame
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from game.core import config
 from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
+    ActionExploreHex,
     ActionRecruitCitizen,
     ActionResearchTech,
     ActionSetSpeed,
@@ -31,6 +33,49 @@ from game.meta.progression import compute_lp_earned
 # Colour aliases
 # ---------------------------------------------------------------------------
 C = config  # short alias
+
+
+# ---------------------------------------------------------------------------
+# Hex map helpers (module-level, no Pygame, no state mutation)
+# ---------------------------------------------------------------------------
+
+def _axial_to_pixel(q: int, r: int, center_x: int, center_y: int, hex_size: float) -> tuple:
+    """Flat-top axial → pixel."""
+    x = hex_size * 1.5 * q
+    y = hex_size * (math.sqrt(3) / 2 * q + math.sqrt(3) * r)
+    return int(x + center_x), int(y + center_y)
+
+
+def _pixel_to_axial(px: int, py: int, center_x: int, center_y: int, hex_size: float) -> tuple:
+    """Flat-top pixel → nearest axial hex (cube rounding)."""
+    x = px - center_x
+    y = py - center_y
+    q = (2.0 / 3.0 * x) / hex_size
+    r = (-1.0 / 3.0 * x + math.sqrt(3) / 3.0 * y) / hex_size
+    s = -q - r
+    rq, rr, rs = round(q), round(r), round(s)
+    if abs(rq - q) > abs(rr - r) and abs(rq - q) > abs(rs - s):
+        rq = -rr - rs
+    elif abs(rr - r) > abs(rs - s):
+        rr = -rq - rs
+    return int(rq), int(rr)
+
+
+def _hex_polygon(cx: int, cy: int, size: float) -> list:
+    """6 vertices of a flat-top hex."""
+    return [
+        (cx + size * math.cos(math.radians(60 * i)),
+         cy + size * math.sin(math.radians(60 * i)))
+        for i in range(6)
+    ]
+
+
+def _hex_has_explored_neighbor(hex_tiles: dict, q: int, r: int) -> bool:
+    for dq, dr in [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)]:
+        tile = hex_tiles.get(f"{q + dq},{r + dr}")
+        if tile and tile.get("explored"):
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -133,6 +178,11 @@ class Renderer:
         self._right_panel_scroll: int = 0
         self._right_panel_content_height: int = 0
 
+        # World map view state
+        self._current_view: str = "colony"  # "colony" | "world_map"
+        self._hex_scroll_offset: List[int] = [0, 0]
+        self._hex_drag_start: Optional[List[int]] = None
+
     # ------------------------------------------------------------------
     # Public: reset between runs
     # ------------------------------------------------------------------
@@ -145,6 +195,9 @@ class Renderer:
         self._buttons = []
         self._menu_buttons = []
         self._right_panel_scroll = 0
+        self._current_view = "colony"
+        self._hex_scroll_offset = [0, 0]
+        self._hex_drag_start = None
 
     # ------------------------------------------------------------------
     # Public: start screen — blocks until the player picks an option
@@ -265,11 +318,41 @@ class Renderer:
             if not state.paused and not self._show_escape_menu:
                 for btn in self._buttons:
                     result = btn.handle_event(event)
-                    if result is not None:
+                    if result == "toggle_view":
+                        self._current_view = "world_map" if self._current_view == "colony" else "colony"
+                    elif result is not None:
                         actions.append(result)
 
-            # Mouse wheel scrolls the right panel
-            if event.type == pygame.MOUSEWHEEL:
+            # World map: right-click drag to pan
+            if self._current_view == "world_map":
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 3:
+                    self._hex_drag_start = list(event.pos)
+                elif event.type == pygame.MOUSEBUTTONUP and event.button == 3:
+                    self._hex_drag_start = None
+                elif event.type == pygame.MOUSEMOTION and self._hex_drag_start is not None:
+                    self._hex_scroll_offset[0] += event.pos[0] - self._hex_drag_start[0]
+                    self._hex_scroll_offset[1] += event.pos[1] - self._hex_drag_start[1]
+                    self._hex_drag_start = list(event.pos)
+
+            # World map: left-click to explore hex
+            _RESOURCE_BAR_H = 40
+            if (self._current_view == "world_map" and not state.paused
+                    and not self._show_escape_menu
+                    and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
+                    and _RESOURCE_BAR_H <= event.pos[1] < C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT):
+                map_base_x = C.WINDOW_WIDTH // 2
+                map_base_y = (_RESOURCE_BAR_H + C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT) // 2
+                cx = map_base_x + self._hex_scroll_offset[0]
+                cy = map_base_y + self._hex_scroll_offset[1]
+                q, r = _pixel_to_axial(event.pos[0], event.pos[1], cx, cy, C.HEX_SIZE)
+                key = f"{q},{r}"
+                if key in state.hex_tiles:
+                    tile = state.hex_tiles[key]
+                    if not tile.get("explored") and _hex_has_explored_neighbor(state.hex_tiles, q, r):
+                        actions.append(ActionExploreHex(q=q, r=r))
+
+            # Mouse wheel scrolls the right panel (colony view only)
+            if event.type == pygame.MOUSEWHEEL and self._current_view == "colony":
                 panel_x = C.WINDOW_WIDTH - C.RIGHT_PANEL_WIDTH
                 panel_rect = pygame.Rect(
                     panel_x, 0, C.RIGHT_PANEL_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
@@ -314,8 +397,15 @@ class Renderer:
         self._menu_buttons = []  # reset each frame
         self.screen.fill(C.COLOR_BG)
 
-        self._draw_left_panel(state)
-        self._draw_right_panel(state)
+        if self._current_view == "world_map" and state.hex_map_unlocked:
+            self._draw_world_map(state)
+        else:
+            # Auto-correct stale view (e.g. loaded save without cartography)
+            if self._current_view == "world_map":
+                self._current_view = "colony"
+            self._draw_left_panel(state)
+            self._draw_right_panel(state)
+
         self._draw_bottom_bar(state)
 
         if state.status != GameStatus.PLAYING:
@@ -539,6 +629,155 @@ class Renderer:
         return y + C.BUILD_BTN_HEIGHT + 4
 
     # ------------------------------------------------------------------
+    # World map view
+    # ------------------------------------------------------------------
+
+    def _draw_world_map(self, state: GameState) -> None:
+        _RESOURCE_BAR_H = 40
+        map_area_top    = _RESOURCE_BAR_H
+        map_area_bottom = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
+
+        # --- Compact resource bar at top ---
+        bar_rect = pygame.Rect(0, 0, C.WINDOW_WIDTH, _RESOURCE_BAR_H)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, bar_rect)
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER,
+                         (0, _RESOURCE_BAR_H), (C.WINDOW_WIDTH, _RESOURCE_BAR_H))
+        res_y = (_RESOURCE_BAR_H - C.FONT_SIZE_SMALL) // 2
+        rx = C.PANEL_PADDING
+        for text, color in [
+            (f"Food: {state.food:.0f}",   C.COLOR_FOOD),
+            (f"Wood: {state.wood:.0f}",   C.COLOR_WOOD),
+            (f"Gold: {state.gold:.0f}",   C.COLOR_GOLD),
+            (f"Stone: {state.stone:.0f}", C.COLOR_STONE),
+            (f"Planks: {state.planks:.0f}", C.COLOR_PLANKS),
+        ]:
+            surf = self.font_small.render(text, True, color)
+            self.screen.blit(surf, (rx, res_y))
+            rx += surf.get_width() + 40
+
+        # Win target label (right side of resource bar)
+        wt_text = f"Win target: {state.gold:.0f} / {state.win_gold_target} Gold"
+        wt_surf = self.font_small.render(wt_text, True, C.COLOR_GOLD)
+        self.screen.blit(wt_surf, (C.WINDOW_WIDTH - wt_surf.get_width() - C.PANEL_PADDING, res_y))
+
+        # --- Hex grid ---
+        map_base_x = C.WINDOW_WIDTH // 2
+        map_base_y = (map_area_top + map_area_bottom) // 2
+        cx = map_base_x + self._hex_scroll_offset[0]
+        cy = map_base_y + self._hex_scroll_offset[1]
+        hex_size = C.HEX_SIZE
+
+        # Determine hovered hex
+        mouse_pos = pygame.mouse.get_pos()
+        hq, hr = _pixel_to_axial(mouse_pos[0], mouse_pos[1], cx, cy, hex_size)
+        hovered_key = f"{hq},{hr}"
+        hovered_hex = (hq, hr) if hovered_key in state.hex_tiles else None
+
+        # Clip to map area so hexes don't overdraw resource bar or bottom bar
+        map_clip = pygame.Rect(0, map_area_top, C.WINDOW_WIDTH, map_area_bottom - map_area_top)
+        self.screen.set_clip(map_clip)
+
+        for key, tile in state.hex_tiles.items():
+            q, r = map(int, key.split(","))
+            px, py = _axial_to_pixel(q, r, cx, cy, hex_size)
+            vertices = _hex_polygon(px, py, hex_size - 2)
+            explored = tile.get("explored", False)
+            terrain  = tile.get("terrain", "plains")
+
+            is_explorable = not explored and _hex_has_explored_neighbor(state.hex_tiles, q, r)
+
+            if explored:
+                color = C.HEX_TERRAIN_COLORS.get(terrain, C.HEX_FOG_COLOR)
+            elif is_explorable:
+                color = C.HEX_EXPLORABLE_COLOR
+            else:
+                color = C.HEX_FOG_COLOR
+
+            # Hover highlight
+            if hovered_hex == (q, r) and (explored or is_explorable):
+                color = tuple(min(255, c + 40) for c in color)
+
+            pygame.draw.polygon(self.screen, color, vertices)
+
+            border_color = C.HEX_FOG_BORDER_COLOR if is_explorable else C.COLOR_PANEL_BORDER
+            pygame.draw.polygon(self.screen, border_color, vertices, 1)
+
+            # Label
+            if explored:
+                if terrain == "colony":
+                    lbl_surf = self.font_small.render("HOME", True, C.COLOR_GOLD)
+                else:
+                    lbl_surf = self.font_small.render(terrain[:4].upper(), True, C.COLOR_TEXT_SECONDARY)
+                self.screen.blit(lbl_surf, lbl_surf.get_rect(center=(px, py)))
+
+        self.screen.set_clip(None)
+
+        # Tooltip
+        if hovered_hex:
+            tile = state.hex_tiles.get(f"{hovered_hex[0]},{hovered_hex[1]}")
+            if tile:
+                self._draw_hex_tooltip(state, tile, hovered_hex[0], hovered_hex[1], mouse_pos)
+
+        # Hint
+        hint_surf = self.font_small.render(
+            "Left-click to explore  |  Right-drag to pan", True, C.COLOR_TEXT_DISABLED
+        )
+        self.screen.blit(hint_surf, (C.PANEL_PADDING, map_area_bottom - C.LINE_HEIGHT_SMALL - 4))
+
+    def _draw_hex_tooltip(self, state: GameState, tile: dict, q: int, r: int, mouse_pos: tuple) -> None:
+        terrain  = tile.get("terrain", "unknown")
+        explored = tile.get("explored", False)
+        ring = max(abs(q), abs(r), abs(q + r))
+
+        lines: list = []
+        if terrain == "colony":
+            lines.append(("Colony (Home)", C.COLOR_GOLD))
+            lines.append(("Starting location", C.COLOR_TEXT_SECONDARY))
+        elif explored:
+            lines.append((terrain.title(), C.COLOR_TEXT_PRIMARY))
+            rewards = C.HEX_TERRAIN_REWARDS.get(terrain, {})
+            if rewards:
+                reward_str = "  ".join(f"+{v} {k.title()}" for k, v in rewards.items())
+                lines.append((f"Reward: {reward_str}", C.COLOR_POSITIVE))
+            else:
+                lines.append(("No reward", C.COLOR_TEXT_DISABLED))
+        else:
+            is_explorable = _hex_has_explored_neighbor(state.hex_tiles, q, r)
+            lines.append((f"Ring {ring} — Unexplored", C.COLOR_TEXT_SECONDARY))
+            if is_explorable:
+                cost = C.HEX_EXPLORE_COST_BY_RING.get(ring, {})
+                if cost:
+                    cost_str = "  ".join(f"{v} {k.title()}" for k, v in cost.items())
+                    lines.append((f"Cost: {cost_str}", C.COLOR_TEXT_PRIMARY))
+                can_afford = (
+                    state.wood   >= cost.get("wood", 0)
+                    and state.stone  >= cost.get("stone", 0)
+                    and state.gold   >= cost.get("gold", 0)
+                    and state.planks >= cost.get("planks", 0)
+                )
+                lines.append(("Click to explore" if can_afford else "Not enough resources",
+                               C.COLOR_POSITIVE if can_afford else C.COLOR_NEGATIVE))
+            else:
+                lines.append(("Not yet reachable", C.COLOR_TEXT_DISABLED))
+
+        pad    = 8
+        line_h = C.LINE_HEIGHT_SMALL
+        box_w  = 260
+        box_h  = pad * 2 + len(lines) * line_h
+
+        tx = mouse_pos[0] + 16
+        ty = mouse_pos[1] - box_h // 2
+        tx = min(tx, C.WINDOW_WIDTH - box_w - 4)
+        ty = max(ty, 40)
+        ty = min(ty, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT - box_h - 4)
+
+        box_rect = pygame.Rect(tx, ty, box_w, box_h)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, box_rect, border_radius=4)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, box_rect, width=1, border_radius=4)
+        for i, (text, color) in enumerate(lines):
+            self._blit(text, self.font_small, color, tx + pad, ty + pad + i * line_h)
+
+    # ------------------------------------------------------------------
     # Bottom bar
     # ------------------------------------------------------------------
 
@@ -571,6 +810,20 @@ class Renderer:
         starve_color = C.COLOR_NEGATIVE if state.starvation_events > 0 else C.COLOR_TEXT_SECONDARY
         self._blit(f"Starvations: {state.starvation_events}", self.font_med, starve_color,
                    sx + C.BOTTOM_BAR_COLONIST_GAP + C.BOTTOM_BAR_STARVE_GAP, cy)
+
+        # World Map toggle button (only when cartography is researched)
+        if state.hex_map_unlocked:
+            toggle_label = "Colony View" if self._current_view == "world_map" else "World Map"
+            toggle_btn_h = 44
+            toggle_btn_y = bar_y + (C.BOTTOM_BAR_HEIGHT - toggle_btn_h) // 2
+            toggle_btn = Button(
+                rect=pygame.Rect(1130, toggle_btn_y, 210, toggle_btn_h),
+                label=toggle_label,
+                action="toggle_view",
+                font=self.font_small,
+            )
+            self._buttons.append(toggle_btn)
+            toggle_btn.draw(self.screen)
 
         # Status / keybind hint (right-aligned)
         if state.status == GameStatus.PLAYING:

@@ -66,6 +66,11 @@ class GameState:
     researched_tech_ids: List[str] = field(default_factory=list)
 
     # -------------------------------------------------------------------
+    # Hex world map  {"q,r": {"terrain": str, "explored": bool}}
+    # -------------------------------------------------------------------
+    hex_tiles: dict = field(default_factory=dict)
+
+    # -------------------------------------------------------------------
     # Roguelite / meta
     # -------------------------------------------------------------------
     run_number: int = 1
@@ -111,6 +116,7 @@ class GameState:
             "total_gold_earned": self.total_gold_earned,
             "food_consumption_mult": self.food_consumption_mult,
             "market_gold_bonus_mult": self.market_gold_bonus_mult,
+            "hex_tiles": self.hex_tiles,
         }
 
     def to_json(self) -> str:
@@ -144,6 +150,7 @@ class GameState:
             total_gold_earned=d.get("total_gold_earned", 0.0),
             food_consumption_mult=d.get("food_consumption_mult", 1.0),
             market_gold_bonus_mult=d.get("market_gold_bonus_mult", 1.0),
+            hex_tiles=d.get("hex_tiles", {}),
         )
         return gs
 
@@ -154,6 +161,10 @@ class GameState:
     # -------------------------------------------------------------------
     # Convenience helpers (read-only, no side effects)
     # -------------------------------------------------------------------
+
+    @property
+    def hex_map_unlocked(self) -> bool:
+        return "cartography" in self.researched_tech_ids
 
     @property
     def win_gold_target(self) -> int:

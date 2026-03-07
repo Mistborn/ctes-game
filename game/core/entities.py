@@ -154,3 +154,10 @@ class ActionResearchTech:
 class ActionRecruitCitizen:
     """Player action: spend food to immediately recruit a new citizen."""
     pass
+
+
+@dataclass
+class ActionExploreHex:
+    """Player action: explore a hex tile on the world map."""
+    q: int
+    r: int
