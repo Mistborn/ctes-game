@@ -192,6 +192,10 @@ def main() -> None:
                 elif action == "start_next_run":
                     start_next_run = True
                     break
+                elif action == "toggle_auto_hire":
+                    state.auto_hire_enabled = not state.auto_hire_enabled
+                elif action == "toggle_auto_assign":
+                    state.auto_assign_enabled = not state.auto_assign_enabled
                 else:
                     engine.apply_action(state, action)
 

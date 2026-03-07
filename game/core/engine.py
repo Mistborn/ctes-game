@@ -61,6 +61,14 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
         # Trade connections: +15% market gold
         if "trade_connections" in unlocked:
             state.market_gold_bonus_mult = 1.15
+
+        # Automation upgrades
+        if "auto_hire" in unlocked:
+            state.auto_hire_unlocked = True
+            state.auto_hire_enabled = True
+        if "auto_assign" in unlocked:
+            state.auto_assign_unlocked = True
+            state.auto_assign_enabled = True
     else:
         starting_colonists = config.STARTING_COLONISTS
 
@@ -152,7 +160,13 @@ def tick(state: GameState) -> GameState:
     if state.gold_rate > 0:
         state.total_gold_earned += state.gold_rate
 
-    # 6. Win / Lose checks
+    # 6. Automation: auto-hire and auto-assign
+    if state.auto_hire_enabled and state.food >= config.RECRUIT_CITIZEN_FOOD_COST:
+        _handle_recruit_citizen(state)
+    if state.auto_assign_enabled:
+        _auto_assign_idle_colonists(state)
+
+    # 7. Win / Lose checks
     _check_endgame(state)
 
     return state
@@ -365,6 +379,19 @@ def _assign_colonist_to_building(
         colonist.assigned_building_id = building_id
         building.workers_assigned += 1
         assigned += 1
+
+
+def _auto_assign_idle_colonists(state: GameState) -> None:
+    """Assign each idle colonist to the first building with an open slot."""
+    for colonist in state.colonists:
+        if colonist is None or colonist.assigned_building_id is not None:
+            continue
+        for building in state.buildings:
+            max_w = _max_workers_for(building.building_type)
+            if building.workers_assigned < max_w:
+                colonist.assigned_building_id = building.id
+                building.workers_assigned += 1
+                break
 
 
 # ---------------------------------------------------------------------------

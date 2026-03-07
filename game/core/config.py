@@ -360,4 +360,18 @@ UPGRADES = [
         "lp_cost": 3,
         "requires": None,
     },
+    {
+        "id": "auto_hire",
+        "name": "Auto-Hire",
+        "description": "Toggle: hire a worker whenever food > 100",
+        "lp_cost": 2,
+        "requires": None,
+    },
+    {
+        "id": "auto_assign",
+        "name": "Auto-Assign",
+        "description": "Toggle: assign new workers to open building slots",
+        "lp_cost": 2,
+        "requires": None,
+    },
 ]

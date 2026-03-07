@@ -80,6 +80,14 @@ class GameState:
     market_gold_bonus_mult: float = 1.0
 
     # -------------------------------------------------------------------
+    # Automation upgrades (set by new_game based on meta; toggled in-run)
+    # -------------------------------------------------------------------
+    auto_hire_unlocked: bool = False
+    auto_hire_enabled: bool = False
+    auto_assign_unlocked: bool = False
+    auto_assign_enabled: bool = False
+
+    # -------------------------------------------------------------------
     # Game status
     # -------------------------------------------------------------------
     status: GameStatus = GameStatus.PLAYING
@@ -117,6 +125,10 @@ class GameState:
             "food_consumption_mult": self.food_consumption_mult,
             "market_gold_bonus_mult": self.market_gold_bonus_mult,
             "hex_tiles": self.hex_tiles,
+            "auto_hire_unlocked": self.auto_hire_unlocked,
+            "auto_hire_enabled": self.auto_hire_enabled,
+            "auto_assign_unlocked": self.auto_assign_unlocked,
+            "auto_assign_enabled": self.auto_assign_enabled,
         }
 
     def to_json(self) -> str:
@@ -151,6 +163,10 @@ class GameState:
             food_consumption_mult=d.get("food_consumption_mult", 1.0),
             market_gold_bonus_mult=d.get("market_gold_bonus_mult", 1.0),
             hex_tiles=d.get("hex_tiles", {}),
+            auto_hire_unlocked=d.get("auto_hire_unlocked", False),
+            auto_hire_enabled=d.get("auto_hire_enabled", False),
+            auto_assign_unlocked=d.get("auto_assign_unlocked", False),
+            auto_assign_enabled=d.get("auto_assign_enabled", False),
         )
         return gs
 

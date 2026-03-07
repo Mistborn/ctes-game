@@ -404,6 +404,7 @@ class Renderer:
             if self._current_view == "world_map":
                 self._current_view = "colony"
             self._draw_left_panel(state)
+            self._draw_middle_panel(state)
             self._draw_right_panel(state)
 
         self._draw_bottom_bar(state)
@@ -512,6 +513,60 @@ class Renderer:
         )
         self._blit(f"{rate:+.2f}/tick", self.font_small, rate_color, x + C.RESOURCE_RATE_X, y + 3)
         return y + C.RESOURCE_ROW_HEIGHT
+
+    # ------------------------------------------------------------------
+    # Middle panel — automation toggles (only when upgrades are unlocked)
+    # ------------------------------------------------------------------
+
+    def _draw_middle_panel(self, state: GameState) -> None:
+        if not (state.auto_hire_unlocked or state.auto_assign_unlocked):
+            return
+
+        mid_area_x = C.LEFT_PANEL_WIDTH
+        mid_area_w = C.WINDOW_WIDTH - C.RIGHT_PANEL_WIDTH - C.LEFT_PANEL_WIDTH
+        panel_w = 380
+        panel_x = mid_area_x + (mid_area_w - panel_w) // 2
+        panel_y = C.PANEL_PADDING
+
+        num_buttons = int(state.auto_hire_unlocked) + int(state.auto_assign_unlocked)
+        panel_h = (C.PANEL_PADDING * 2 + C.LINE_HEIGHT_LARGE + C.DIVIDER_PADDING
+                   + num_buttons * (C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP))
+
+        panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, panel_rect)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, panel_rect, width=1)
+
+        x = panel_x + C.PANEL_PADDING
+        y = panel_y + C.PANEL_PADDING
+        btn_w = panel_w - C.PANEL_PADDING * 2
+
+        self._blit("AUTOMATION", self.font_large, C.COLOR_TEXT_PRIMARY, x, y)
+        y += C.LINE_HEIGHT_LARGE
+        self._divider(x, y, panel_x + panel_w - C.PANEL_PADDING)
+        y += C.DIVIDER_PADDING
+
+        if state.auto_hire_unlocked:
+            on_off = "ON" if state.auto_hire_enabled else "OFF"
+            btn = Button(
+                rect=pygame.Rect(x, y, btn_w, C.BUILD_BTN_HEIGHT),
+                label=f"Auto-Hire  [{on_off}]",
+                action="toggle_auto_hire",
+                font=self.font_small,
+            )
+            btn.draw(self.screen)
+            self._buttons.append(btn)
+            y += C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP
+
+        if state.auto_assign_unlocked:
+            on_off = "ON" if state.auto_assign_enabled else "OFF"
+            btn = Button(
+                rect=pygame.Rect(x, y, btn_w, C.BUILD_BTN_HEIGHT),
+                label=f"Auto-Assign  [{on_off}]",
+                action="toggle_auto_assign",
+                font=self.font_small,
+            )
+            btn.draw(self.screen)
+            self._buttons.append(btn)
 
     # ------------------------------------------------------------------
     # Right panel — buildings + worker assignment + build buttons
@@ -1153,10 +1208,10 @@ class Renderer:
         # ---------------------------------------------------------------
         # Left: Run summary
         # ---------------------------------------------------------------
-        lx, ly = 160, 110
+        lx, ly = 80, 110
         self._blit("RUN SUMMARY", self.font_med, C.COLOR_TEXT_SECONDARY, lx, ly)
         ly += C.LINE_HEIGHT_MED
-        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (lx, ly), (lx + 560, ly))
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (lx, ly), (lx + 520, ly))
         ly += C.DIVIDER_PADDING
 
         if state.status == GameStatus.WIN:
@@ -1197,17 +1252,57 @@ class Renderer:
         self._blit(f"Total runs: {meta.total_runs}  Wins: {meta.total_wins}", self.font_small, C.COLOR_TEXT_DISABLED, lx, ly)
 
         # ---------------------------------------------------------------
-        # Right: Upgrade shop
+        # Middle: Automation upgrades
         # ---------------------------------------------------------------
-        rx, ry = 900, 110
+        _automation_ids = {"auto_hire", "auto_assign"}
+        mx, my = 700, 110
+        self._blit("AUTOMATION", self.font_med, C.COLOR_TEXT_SECONDARY, mx, my)
+        my += C.LINE_HEIGHT_MED
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (mx, my), (mx + 420, my))
+        my += C.DIVIDER_PADDING
+
+        for upgrade in C.UPGRADES:
+            if upgrade["id"] not in _automation_ids:
+                continue
+            uid       = upgrade["id"]
+            name      = upgrade["name"]
+            desc      = upgrade["description"]
+            cost      = upgrade["lp_cost"]
+            is_unlocked = uid in meta.unlocked_upgrades
+            can_afford  = meta.legacy_points >= cost
+
+            if is_unlocked:
+                self._blit(f"[✓] {name}", self.font_small, C.COLOR_UNLOCK, mx, my)
+                self._blit(f"    {desc}", self.font_small, C.COLOR_TEXT_DISABLED, mx, my + C.LINE_HEIGHT_SMALL)
+                my += C.LINE_HEIGHT_SMALL * 2 + 10
+            else:
+                btn_rect = pygame.Rect(mx, my, 420, C.BUILD_BTN_HEIGHT)
+                lp_label = f"[{cost} LP]  {name} — {desc}"
+                btn = Button(
+                    rect=btn_rect,
+                    label=lp_label,
+                    action=f"buy:{uid}",
+                    enabled=can_afford,
+                    font=self.font_small,
+                )
+                self._menu_buttons.append(btn)
+                btn.draw(self.screen)
+                my += C.BUILD_BTN_HEIGHT + 10
+
+        # ---------------------------------------------------------------
+        # Right: General upgrade shop
+        # ---------------------------------------------------------------
+        rx, ry = 1180, 110
         self._blit("UPGRADES", self.font_med, C.COLOR_TEXT_SECONDARY, rx, ry)
         lp_surf = self.font_med.render(f"LP: {meta.legacy_points}", True, C.COLOR_LP)
-        self.screen.blit(lp_surf, (rx + 560 - lp_surf.get_width(), ry))
+        self.screen.blit(lp_surf, (rx + 680 - lp_surf.get_width(), ry))
         ry += C.LINE_HEIGHT_MED
-        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (rx, ry), (rx + 860, ry))
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (rx, ry), (rx + 680, ry))
         ry += C.DIVIDER_PADDING
 
         for upgrade in C.UPGRADES:
+            if upgrade["id"] in _automation_ids:
+                continue
             uid      = upgrade["id"]
             name     = upgrade["name"]
             desc     = upgrade["description"]
@@ -1231,7 +1326,7 @@ class Renderer:
                 self._blit(f"    Requires: {req_name}", self.font_small, C.COLOR_TEXT_DISABLED, rx, ry + C.LINE_HEIGHT_SMALL)
                 ry += C.LINE_HEIGHT_SMALL * 2 + 10
             else:
-                btn_rect = pygame.Rect(rx, ry, 700, C.BUILD_BTN_HEIGHT)
+                btn_rect = pygame.Rect(rx, ry, 680, C.BUILD_BTN_HEIGHT)
                 lp_label = f"[{cost} LP]  {name} — {desc}"
                 btn = Button(
                     rect=btn_rect,
