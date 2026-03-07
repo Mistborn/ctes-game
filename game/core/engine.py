@@ -121,7 +121,6 @@ def tick(state: GameState) -> GameState:
         return state
 
     state.tick += 1
-    state.ticks_since_last_arrival_check += 1
 
     # Snapshot resources before tick for rate calculation
     food_before  = state.food
@@ -164,15 +163,7 @@ def tick(state: GameState) -> GameState:
     if state.tick > 0 and state.tick % config.TRIBUTE_INTERVAL_TICKS == 0:
         _check_tribute(state)
 
-    # 7. Colonist arrival check
-    if state.ticks_since_last_arrival_check >= config.COLONIST_ARRIVAL_INTERVAL_TICKS:
-        state.ticks_since_last_arrival_check = 0
-        if state.food > config.COLONIST_ARRIVAL_MIN_FOOD_SURPLUS:
-            _add_colonist(state)
-            if state.colonist_count > state.peak_colonists:
-                state.peak_colonists = state.colonist_count
-
-    # 8. Win / Lose checks
+    # 7. Win / Lose checks
     _check_endgame(state)
 
     return state
