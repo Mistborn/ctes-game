@@ -618,7 +618,8 @@ class Renderer:
         return y + C.BUILDING_ROW_HEIGHT
 
     def _draw_build_button(self, state: GameState, btype: BuildingType, x: int, y: int) -> int:
-        cost       = self._build_cost(btype)
+        existing   = sum(1 for b in state.buildings if b.building_type == btype)
+        cost       = self._build_cost(btype) * (2 ** existing)
         can_afford = state.wood >= cost
         label      = f"Build {btype.value}  (cost: {cost:.0f} Wood)"
         btn_rect   = pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT)
@@ -699,13 +700,20 @@ class Renderer:
 
             pygame.draw.polygon(self.screen, color, vertices)
 
-            border_color = C.HEX_FOG_BORDER_COLOR if is_explorable else C.COLOR_PANEL_BORDER
-            pygame.draw.polygon(self.screen, border_color, vertices, 1)
+            has_boss = tile.get("has_boss", False)
+            if explored and has_boss:
+                border_color = C.HEX_BOSS_BORDER_COLOR
+                pygame.draw.polygon(self.screen, border_color, vertices, 2)
+            else:
+                border_color = C.HEX_FOG_BORDER_COLOR if is_explorable else C.COLOR_PANEL_BORDER
+                pygame.draw.polygon(self.screen, border_color, vertices, 1)
 
             # Label
             if explored:
                 if terrain == "colony":
                     lbl_surf = self.font_small.render("HOME", True, C.COLOR_GOLD)
+                elif has_boss:
+                    lbl_surf = self.font_small.render("BOSS", True, C.HEX_BOSS_BORDER_COLOR)
                 else:
                     lbl_surf = self.font_small.render(terrain[:4].upper(), True, C.COLOR_TEXT_SECONDARY)
                 self.screen.blit(lbl_surf, lbl_surf.get_rect(center=(px, py)))
@@ -734,7 +742,11 @@ class Renderer:
             lines.append(("Colony (Home)", C.COLOR_GOLD))
             lines.append(("Starting location", C.COLOR_TEXT_SECONDARY))
         elif explored:
+            has_boss = tile.get("has_boss", False)
             lines.append((terrain.title(), C.COLOR_TEXT_PRIMARY))
+            if has_boss:
+                lines.append(("Boss Monster", C.HEX_BOSS_BORDER_COLOR))
+                lines.append(("(Cannot interact yet)", C.COLOR_TEXT_DISABLED))
             rewards = C.HEX_TERRAIN_REWARDS.get(terrain, {})
             if rewards:
                 reward_str = "  ".join(f"+{v} {k.title()}" for k, v in rewards.items())
@@ -747,8 +759,11 @@ class Renderer:
             if is_explorable:
                 cost = C.HEX_EXPLORE_COST_BY_RING.get(ring, {})
                 if cost:
-                    cost_str = "  ".join(f"{v} {k.title()}" for k, v in cost.items())
-                    lines.append((f"Cost: {cost_str}", C.COLOR_TEXT_PRIMARY))
+                    cost_items = [f"{v} {k.title()}" for k, v in cost.items()]
+                    for i in range(0, len(cost_items), 2):
+                        chunk = "  ".join(cost_items[i:i + 2])
+                        prefix = "Cost: " if i == 0 else "      "
+                        lines.append((prefix + chunk, C.COLOR_TEXT_PRIMARY))
                 can_afford = (
                     state.wood   >= cost.get("wood", 0)
                     and state.stone  >= cost.get("stone", 0)
@@ -817,7 +832,7 @@ class Renderer:
             toggle_btn_h = 44
             toggle_btn_y = bar_y + (C.BOTTOM_BAR_HEIGHT - toggle_btn_h) // 2
             toggle_btn = Button(
-                rect=pygame.Rect(1130, toggle_btn_y, 210, toggle_btn_h),
+                rect=pygame.Rect(1020, toggle_btn_y, 210, toggle_btn_h),
                 label=toggle_label,
                 action="toggle_view",
                 font=self.font_small,

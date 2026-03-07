@@ -218,7 +218,7 @@ BOTTOM_BAR_TICK_W        = 270   # width of tick counter column         (was 180
 BOTTOM_BAR_SPEED_LABEL_W = 100   # width of "Speed:" label              (was 68)
 BOTTOM_BAR_SPEED_ITEM_W  = 68    # width per speed option ("1x" etc.)   (was 46)
 BOTTOM_BAR_COLONIST_GAP  = 30    # gap before colonist count            (was 20)
-BOTTOM_BAR_STARVE_GAP    = 300   # gap before starvation count          (was 200)
+BOTTOM_BAR_STARVE_GAP    = 200   # gap before starvation count          (was 200)
 
 # ---------------------------------------------------------------------------
 # Colors (R, G, B)
@@ -297,6 +297,10 @@ HEX_TERRAIN_COLORS = {
 HEX_FOG_COLOR        = (25, 25, 35)
 HEX_FOG_BORDER_COLOR = (60, 60, 85)
 HEX_EXPLORABLE_COLOR = (40, 40, 58)
+HEX_BOSS_BORDER_COLOR = (200, 40, 40)
+
+# Probability that a non-colony hex has a boss monster (rings 2+ only)
+HEX_BOSS_CHANCE = 0.15
 
 # ---------------------------------------------------------------------------
 # Seasons
@@ -327,20 +331,6 @@ UPGRADES = [
         "description": "Start with 7 colonists",
         "lp_cost": 3,
         "requires": "extra_colonists_1",
-    },
-    {
-        "id": "more_food_1",
-        "name": "Stockpiled Supplies",
-        "description": "Start with 80 food",
-        "lp_cost": 1,
-        "requires": None,
-    },
-    {
-        "id": "more_food_2",
-        "name": "Well-Stocked",
-        "description": "Start with 120 food",
-        "lp_cost": 3,
-        "requires": "more_food_1",
     },
     {
         "id": "hearty_colonists",

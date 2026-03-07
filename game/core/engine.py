@@ -54,12 +54,6 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
         else:
             starting_colonists = config.STARTING_COLONISTS
 
-        # Starting food (use highest tier only)
-        if "more_food_2" in unlocked:
-            state.food = 120.0
-        elif "more_food_1" in unlocked:
-            state.food = 80.0
-
         # Hearty colonists: -10% food consumption
         if "hearty_colonists" in unlocked:
             state.food_consumption_mult = 0.9
@@ -409,7 +403,8 @@ def _handle_assign_worker(state: GameState, action: ActionAssignWorker) -> None:
 
 
 def _handle_build_building(state: GameState, action: ActionBuildBuilding) -> None:
-    cost = _build_cost_for(action.building_type)
+    existing = sum(1 for b in state.buildings if b.building_type == action.building_type)
+    cost = _build_cost_for(action.building_type) * (2 ** existing)
     if state.wood < cost:
         return  # Cannot afford — silently ignore
 
@@ -514,7 +509,9 @@ def _initialize_hex_map(state: GameState) -> None:
                 state.hex_tiles[key] = {"terrain": "colony", "explored": True}
             else:
                 terrain = rng.choices(terrain_types, weights=weights)[0]
-                state.hex_tiles[key] = {"terrain": terrain, "explored": False}
+                ring = max(abs(q), abs(r), abs(q + r))
+                has_boss = ring >= 2 and rng.random() < config.HEX_BOSS_CHANCE
+                state.hex_tiles[key] = {"terrain": terrain, "explored": False, "has_boss": has_boss}
 
 
 def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
