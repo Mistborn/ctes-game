@@ -359,7 +359,7 @@ class Renderer:
         # Win target progress bar
         self._blit("WIN TARGET", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
         y += C.LINE_HEIGHT_MED
-        progress = min(state.gold / C.WIN_GOLD_TARGET, 1.0)
+        progress = min(state.gold / state.win_gold_target, 1.0)
         bar_w    = C.LEFT_PANEL_WIDTH - x * 2
         bar_bg   = pygame.Rect(x, y, bar_w, C.PROGRESS_BAR_HEIGHT)
         bar_fill = pygame.Rect(x, y, int(bar_w * progress), C.PROGRESS_BAR_HEIGHT)
@@ -367,7 +367,7 @@ class Renderer:
         pygame.draw.rect(self.screen, C.COLOR_GOLD,          bar_fill, border_radius=3)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER,  bar_bg,   width=1, border_radius=3)
         y += C.PROGRESS_BAR_HEIGHT + 6
-        self._blit(f"{state.gold:.0f} / {C.WIN_GOLD_TARGET} Gold", self.font_small, C.COLOR_GOLD, x, y)
+        self._blit(f"{state.gold:.0f} / {state.win_gold_target} Gold", self.font_small, C.COLOR_GOLD, x, y)
         y += C.LINE_HEIGHT_MED
 
         y += C.SECTION_GAP
@@ -399,7 +399,7 @@ class Renderer:
         self._buttons.append(recruit_btn)
         y += C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP
 
-        # Season + tribute
+        # Season
         y += C.SECTION_GAP
         self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
         y += C.DIVIDER_PADDING
@@ -409,22 +409,6 @@ class Renderer:
         is_winter = season == "Winter"
         food_mult_str = f" (food ×{C.WINTER_FOOD_MULT:.0f})" if is_winter else ""
         self._blit(f"Season: {season}{food_mult_str}", self.font_small, season_color, x, y)
-        y += C.LINE_HEIGHT_SMALL
-
-        if state.tribute_schedule and state.tributes_paid < len(state.tribute_schedule):
-            ticks_into_interval = state.tick % C.TRIBUTE_INTERVAL_TICKS
-            ticks_until = C.TRIBUTE_INTERVAL_TICKS - ticks_into_interval
-            if ticks_into_interval == 0 and state.tick > 0:
-                ticks_until = C.TRIBUTE_INTERVAL_TICKS
-            next_amount = state.tribute_schedule[state.tributes_paid]
-            can_pay = state.gold >= next_amount
-            tribute_color = C.COLOR_TRIBUTE if can_pay else C.COLOR_NEGATIVE
-            self._blit(
-                f"Tribute in {ticks_until}tk: {next_amount}g",
-                self.font_small, tribute_color, x, y,
-            )
-        elif state.tribute_schedule:
-            self._blit("All tributes paid!", self.font_small, C.COLOR_POSITIVE, x, y)
 
     def _draw_resource_row(
         self, label: str, value: float, rate: float, color: tuple, x: int, y: int
@@ -594,8 +578,6 @@ class Renderer:
             status_color = C.COLOR_SPEED_HIGHLIGHT if state.paused else C.COLOR_TEXT_SECONDARY
         elif state.status == GameStatus.WIN:
             status_text, status_color = "YOU WIN!", C.COLOR_WIN
-        elif state.status == GameStatus.LOSE_TRIBUTE:
-            status_text, status_color = "TRIBUTE FAILED", C.COLOR_LOSE
         else:
             status_text, status_color = "GAME OVER", C.COLOR_LOSE
 
@@ -827,12 +809,6 @@ class Renderer:
             title    = "VICTORY!"
             subtitle = f"You accumulated {state.gold:.0f} Gold in {state.tick} ticks!"
             color    = C.COLOR_WIN
-        elif state.status == GameStatus.LOSE_TRIBUTE:
-            title    = "TRIBUTE FAILED"
-            due_idx  = state.tributes_paid
-            due_amt  = state.tribute_schedule[due_idx] if due_idx < len(state.tribute_schedule) else "?"
-            subtitle = f"Could not pay tribute of {due_amt}g on tick {state.tick}."
-            color    = C.COLOR_LOSE
         else:
             title    = "DEFEAT"
             subtitle = f"All colonists perished on tick {state.tick}."
@@ -917,8 +893,6 @@ class Renderer:
 
         if state.status == GameStatus.WIN:
             outcome_text, outcome_color = "VICTORY", C.COLOR_WIN
-        elif state.status == GameStatus.LOSE_TRIBUTE:
-            outcome_text, outcome_color = "TRIBUTE FAILED", C.COLOR_LOSE
         else:
             outcome_text, outcome_color = "DEFEAT", C.COLOR_LOSE
 
@@ -926,7 +900,6 @@ class Renderer:
             ("Outcome",        outcome_text,                                outcome_color),
             ("Ticks survived", str(state.tick),                             C.COLOR_TEXT_PRIMARY),
             ("Gold produced",  f"{state.total_gold_earned:.0f}",            C.COLOR_GOLD),
-            ("Tributes paid",  str(state.tributes_paid),                    C.COLOR_TEXT_PRIMARY),
             ("Starvations",    str(state.starvation_events),                C.COLOR_TEXT_PRIMARY),
         ]
         for label, value, color in rows:

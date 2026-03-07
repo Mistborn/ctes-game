@@ -99,8 +99,9 @@ SAWMILL_MAX_WORKERS = 4
 # ---------------------------------------------------------------------------
 # Win / Lose Conditions
 # ---------------------------------------------------------------------------
-# Gold required to win
-WIN_GOLD_TARGET = 500
+# Gold required to win — scales up each run
+WIN_GOLD_TARGET_BASE = 500
+WIN_GOLD_TARGET_RUN_INCREMENT = 100
 # All colonists dead → lose (handled by colonist count reaching 0)
 
 # ---------------------------------------------------------------------------
@@ -237,18 +238,9 @@ COLOR_LOSE = (220, 60, 60)
 COLOR_BOTTOM_BAR = (22, 18, 12)
 COLOR_SPEED_HIGHLIGHT = (200, 170, 80)
 COLOR_WINTER = (150, 200, 255)        # icy blue for winter label
-COLOR_TRIBUTE = (255, 160, 50)        # orange for tribute countdown
 COLOR_LP = (180, 120, 255)            # purple for LP
 COLOR_SEASON_NORMAL = (120, 160, 100) # muted green for non-winter seasons
 COLOR_UNLOCK = (200, 170, 80)         # gold-ish for unlocked upgrades
-
-# ---------------------------------------------------------------------------
-# Tribute system
-# ---------------------------------------------------------------------------
-TRIBUTE_INTERVAL_TICKS = 200
-TRIBUTE_BASE = 20
-TRIBUTE_RUN_INCREMENT = 15
-TRIBUTE_ESCALATION = 20
 
 # ---------------------------------------------------------------------------
 # Seasons
@@ -262,7 +254,6 @@ WINTER_FOOD_MULT = 2.0
 # ---------------------------------------------------------------------------
 LP_TICKS_DIVISOR = 20
 LP_GOLD_DIVISOR = 15
-LP_PER_TRIBUTE = 15
 LP_WIN_BONUS = 50
 
 # ---------------------------------------------------------------------------

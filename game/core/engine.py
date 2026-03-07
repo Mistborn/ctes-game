@@ -68,9 +68,6 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
     else:
         starting_colonists = config.STARTING_COLONISTS
 
-    # Tribute schedule for this run
-    state.tribute_schedule = _compute_tribute_schedule(state.run_number)
-
     # Spawn starting colonists
     for _ in range(starting_colonists):
         _add_colonist(state)
@@ -155,15 +152,11 @@ def tick(state: GameState) -> GameState:
     state.stone_rate  = state.stone  - stone_before
     state.planks_rate = state.planks - planks_before
 
-    # 5. Track total gold produced (for LP; measured before tribute deduction)
+    # 5. Track total gold produced (for LP)
     if state.gold_rate > 0:
         state.total_gold_earned += state.gold_rate
 
-    # 6. Tribute demand (every TRIBUTE_INTERVAL_TICKS, skipping tick 0)
-    if state.tick > 0 and state.tick % config.TRIBUTE_INTERVAL_TICKS == 0:
-        _check_tribute(state)
-
-    # 7. Win / Lose checks
+    # 6. Win / Lose checks
     _check_endgame(state)
 
     return state
@@ -487,15 +480,15 @@ def _handle_recruit_citizen(state: GameState) -> None:
 
 def _check_endgame(state: GameState) -> None:
     if state.status != GameStatus.PLAYING:
-        return  # already set (e.g. LOSE_TRIBUTE); don't overwrite
-    if state.gold >= config.WIN_GOLD_TARGET:
+        return
+    if state.gold >= state.win_gold_target:
         state.status = GameStatus.WIN
     elif state.colonist_count == 0:
         state.status = GameStatus.LOSE
 
 
 # ---------------------------------------------------------------------------
-# Season / tribute helpers
+# Season helpers
 # ---------------------------------------------------------------------------
 
 def _is_winter(tick: int) -> bool:
@@ -513,25 +506,3 @@ def get_season(tick: int) -> str:
         return "Autumn"
     else:
         return "Winter"
-
-
-def _compute_tribute_schedule(run_number: int) -> list:
-    """Pre-compute tribute amounts for a full run (50 tributes = 10000 ticks)."""
-    return [
-        config.TRIBUTE_BASE
-        + (run_number - 1) * config.TRIBUTE_RUN_INCREMENT
-        + i * config.TRIBUTE_ESCALATION
-        for i in range(50)
-    ]
-
-
-def _check_tribute(state: GameState) -> None:
-    """Deduct tribute or set LOSE_TRIBUTE if the player can't pay."""
-    if state.tributes_paid >= len(state.tribute_schedule):
-        return
-    due = state.tribute_schedule[state.tributes_paid]
-    if state.gold >= due:
-        state.gold -= due
-        state.tributes_paid += 1
-    else:
-        state.status = GameStatus.LOSE_TRIBUTE
