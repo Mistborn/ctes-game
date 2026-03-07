@@ -444,7 +444,7 @@ def _format_state_for_llm(state: GameState) -> str:
         "",
         f"Researched: {', '.join(techs) if techs else 'none'}",
         f"Starvation events: {state.starvation_events}",
-        f"Win condition: {config.WIN_GOLD_TARGET} gold (current: {state.gold:.1f})",
+        f"Win condition: {state.win_gold_target} gold (current: {state.gold:.1f})",
     ]
     return "\n".join(lines)
 
@@ -579,7 +579,7 @@ def _build_system_prompt(checkpoint_ticks: int) -> str:
         "  def strategy(state) -> None:",
         "      # called once per tick after engine.tick(); act via engine.apply_action()",
         "",
-        f"Win: gold >= {config.WIN_GOLD_TARGET}. Lose: all colonists starve or tribute deadline missed.",
+        f"Win: gold >= {config.WIN_GOLD_TARGET_BASE} (run 1), increasing by {config.WIN_GOLD_TARGET_RUN_INCREMENT} each run. Lose: all colonists starve.",
     ])
 
 
@@ -647,7 +647,7 @@ def _write_markdown_log(
     status = final_state.status.value
     if status == "win":
         result = f"WIN at tick {final_state.tick}"
-    elif status in ("lose", "lose_tribute"):
+    elif status == "lose":
         result = f"LOSE ({status}) at tick {final_state.tick}"
     else:
         result = f"INCOMPLETE — reached tick {final_state.tick}"

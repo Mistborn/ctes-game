@@ -29,7 +29,6 @@ class GameStatus(str, Enum):
     PLAYING = "playing"
     WIN = "win"
     LOSE = "lose"
-    LOSE_TRIBUTE = "lose_tribute"
 
 
 # ---------------------------------------------------------------------------
