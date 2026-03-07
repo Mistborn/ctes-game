@@ -42,12 +42,10 @@ STARTING_COLONISTS = 5
 FOOD_PER_COLONIST_PER_TICK = 0.5
 
 # ---------------------------------------------------------------------------
-# Colonist Arrival
+# Colonist Recruitment
 # ---------------------------------------------------------------------------
-# A new colonist arrives every this many ticks if the food surplus condition is met
-COLONIST_ARRIVAL_INTERVAL_TICKS = 100
-# Minimum food surplus required for a new colonist to arrive
-COLONIST_ARRIVAL_MIN_FOOD_SURPLUS = 10
+# Food cost to manually recruit a citizen via the button
+RECRUIT_CITIZEN_FOOD_COST = 100
 
 # ---------------------------------------------------------------------------
 # Building Production Rates (per worker per tick)

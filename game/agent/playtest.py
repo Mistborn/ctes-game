@@ -481,7 +481,7 @@ def _build_system_prompt(checkpoint_ticks: int) -> str:
 
     # --- GameState fields (skip internal bookkeeping) ---
     _SKIP_STATE = {
-        "next_colonist_id", "next_building_id", "ticks_since_last_arrival_check",
+        "next_colonist_id", "next_building_id",
         "speed_multiplier", "paused",
     }
     state_field_lines = [
@@ -670,7 +670,7 @@ def _write_markdown_log(
 
 def run_llm_agent(
     model: str = "claude-sonnet-4-6",
-    checkpoint_ticks: int = 1000,
+    checkpoint_ticks: int = 200,
     num_checkpoints: int = 20,
     log_path: str | None = None,
 ) -> MetricsDict:

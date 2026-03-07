@@ -55,9 +55,6 @@ class GameState:
     next_colonist_id: int = 0
     next_building_id: int = 0
 
-    # Ticks since last colonist-arrival check
-    ticks_since_last_arrival_check: int = 0
-
     # Cumulative starvation event count (used by agent metrics)
     starvation_events: int = 0
     # Peak colonist count reached during the run
@@ -107,7 +104,6 @@ class GameState:
             "buildings": [b.to_dict() for b in self.buildings],
             "next_colonist_id": self.next_colonist_id,
             "next_building_id": self.next_building_id,
-            "ticks_since_last_arrival_check": self.ticks_since_last_arrival_check,
             "starvation_events": self.starvation_events,
             "peak_colonists": self.peak_colonists,
             "status": self.status.value,
@@ -143,7 +139,6 @@ class GameState:
             buildings=[Building.from_dict(b) for b in d["buildings"]],
             next_colonist_id=d["next_colonist_id"],
             next_building_id=d["next_building_id"],
-            ticks_since_last_arrival_check=d.get("ticks_since_last_arrival_check", 0),
             starvation_events=d.get("starvation_events", 0),
             peak_colonists=d.get("peak_colonists", 0),
             status=GameStatus(d["status"]),
