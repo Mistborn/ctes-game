@@ -309,7 +309,10 @@ HEX_BOSS_CHANCE = 0.15
 # ---------------------------------------------------------------------------
 SEASON_CYCLE_TICKS = 400
 WINTER_LENGTH_TICKS = 60
-WINTER_FOOD_MULT = 2.0
+# In winter, farms produce food at this fraction of normal (0.5 = half)
+WINTER_FOOD_PRODUCTION_MULT = 0.5
+# Maximum number of entries kept in the info log
+INFO_LOG_MAX_ENTRIES = 8
 
 # ---------------------------------------------------------------------------
 # Legacy Points

@@ -61,6 +61,13 @@ class GameState:
     peak_colonists: int = 0
 
     # -------------------------------------------------------------------
+    # Info log — seasonal/event messages shown in the left sidebar
+    # Each entry: [tick, message, msg_type]
+    # msg_type: "warning" | "winter" | "spring" | "summer" | "info"
+    # -------------------------------------------------------------------
+    info_log: List = field(default_factory=list)
+
+    # -------------------------------------------------------------------
     # Research
     # -------------------------------------------------------------------
     researched_tech_ids: List[str] = field(default_factory=list)
@@ -129,6 +136,7 @@ class GameState:
             "auto_hire_enabled": self.auto_hire_enabled,
             "auto_assign_unlocked": self.auto_assign_unlocked,
             "auto_assign_enabled": self.auto_assign_enabled,
+            "info_log": [list(e) for e in self.info_log],
         }
 
     def to_json(self) -> str:
@@ -168,6 +176,7 @@ class GameState:
             auto_assign_unlocked=d.get("auto_assign_unlocked", False),
             auto_assign_enabled=d.get("auto_assign_enabled", False),
         )
+        gs.info_log = [list(e) for e in d.get("info_log", [])]
         return gs
 
     @classmethod
