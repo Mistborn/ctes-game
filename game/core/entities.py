@@ -7,17 +7,17 @@ No Pygame, no engine logic here.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import List
-
 
 # ---------------------------------------------------------------------------
 # Enums
 # ---------------------------------------------------------------------------
 
+
 class BuildingType(str, Enum):
     """String enum so values round-trip through JSON without extra handling."""
+
     FARM = "Farm"
     LUMBER_MILL = "Lumber Mill"
     MARKET = "Market"
@@ -37,6 +37,7 @@ class GameStatus(str, Enum):
 # Resource bundle (used for costs, production snapshots, etc.)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ResourceBundle:
     food: float = 0.0
@@ -46,18 +47,19 @@ class ResourceBundle:
     planks: float = 0.0
 
     def to_dict(self) -> dict:
-        return {"food": self.food, "wood": self.wood, "gold": self.gold,
-                "stone": self.stone, "planks": self.planks}
+        return {"food": self.food, "wood": self.wood, "gold": self.gold, "stone": self.stone, "planks": self.planks}
 
     @classmethod
     def from_dict(cls, d: dict) -> "ResourceBundle":
-        return cls(food=d["food"], wood=d["wood"], gold=d["gold"],
-                   stone=d.get("stone", 0.0), planks=d.get("planks", 0.0))
+        return cls(
+            food=d["food"], wood=d["wood"], gold=d["gold"], stone=d.get("stone", 0.0), planks=d.get("planks", 0.0)
+        )
 
 
 # ---------------------------------------------------------------------------
 # Colonist
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Colonist:
@@ -87,6 +89,7 @@ class Colonist:
 # Building
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Building:
     id: int
@@ -114,9 +117,11 @@ class Building:
 # Action types (passed to engine.apply_action)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ActionAssignWorker:
     """Add one worker to a building (+1) or remove one (-1)."""
+
     building_id: int
     delta: int  # +1 or -1
 
@@ -124,12 +129,14 @@ class ActionAssignWorker:
 @dataclass
 class ActionBuildBuilding:
     """Construct a new building of the given type."""
+
     building_type: BuildingType
 
 
 @dataclass
 class ActionSetSpeed:
     """Change simulation speed to one of the allowed multipliers."""
+
     speed_multiplier: int
 
 
@@ -137,9 +144,11 @@ class ActionSetSpeed:
 # Research
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ResearchTech:
     """Pure data descriptor for a researchable technology (no logic)."""
+
     tech_id: str
     name: str
     description: str
@@ -149,18 +158,21 @@ class ResearchTech:
 @dataclass
 class ActionResearchTech:
     """Player action: spend gold to unlock a technology."""
+
     tech_id: str
 
 
 @dataclass
 class ActionRecruitCitizen:
     """Player action: spend food to immediately recruit a new citizen."""
+
     pass
 
 
 @dataclass
 class ActionExploreHex:
     """Player action: explore a hex tile on the world map."""
+
     q: int
     r: int
 
@@ -168,11 +180,13 @@ class ActionExploreHex:
 @dataclass
 class ActionTrainSoldier:
     """Player action: train one soldier at the barracks."""
+
     pass
 
 
 @dataclass
 class ActionFightBoss:
     """Player action: send soldiers to fight the boss on a hex tile."""
+
     q: int
     r: int

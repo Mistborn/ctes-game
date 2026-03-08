@@ -132,15 +132,19 @@ def make_worktree(branch_name: str) -> Path:
     if worktree_path.exists():
         subprocess.run(
             ["git", "worktree", "remove", str(worktree_path), "--force"],
-            cwd=REPO_ROOT, capture_output=True,
+            cwd=REPO_ROOT,
+            capture_output=True,
         )
     subprocess.run(
         ["git", "branch", "-D", branch_name],
-        cwd=REPO_ROOT, capture_output=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "worktree", "add", str(worktree_path), "-b", branch_name],
-        cwd=REPO_ROOT, check=True, capture_output=True,
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
     )
     return worktree_path
 
@@ -149,7 +153,8 @@ def remove_worktree(branch_name: str) -> None:
     worktree_path = WORKTREES_DIR / branch_name
     subprocess.run(
         ["git", "worktree", "remove", str(worktree_path), "--force"],
-        cwd=REPO_ROOT, capture_output=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
     )
 
 
@@ -242,14 +247,10 @@ def _find_claude() -> str:
     if cmd:
         return cmd
     # Common Windows install location
-    candidate = (
-        Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Claude" / "claude.exe"
-    )
+    candidate = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Claude" / "claude.exe"
     if candidate.exists():
         return str(candidate)
-    raise RuntimeError(
-        "claude CLI not found. Install Claude Code and ensure `claude` is on your PATH."
-    )
+    raise RuntimeError("claude CLI not found. Install Claude Code and ensure `claude` is on your PATH.")
 
 
 def run_subagent(worktree_path: Path) -> tuple[int, str]:
@@ -340,7 +341,7 @@ def call_llm(client: anthropic.Anthropic, system: str, user: str) -> str:
         except anthropic.APIError:
             if attempt == 2:
                 raise
-            time.sleep(2 ** attempt)
+            time.sleep(2**attempt)
     return ""
 
 
@@ -373,10 +374,7 @@ REVISION_INSTRUCTIONS: <specific instructions — only if request_changes, other
 def _format_history_summary(history: List[Dict]) -> str:
     if not history:
         return "None — this is the first iteration."
-    lines = [
-        f"- Iter {h['iteration']}: {h['direction'][:70]} → {h['decision']}"
-        for h in history[-8:]
-    ]
+    lines = [f"- Iter {h['iteration']}: {h['direction'][:70]} → {h['decision']}" for h in history[-8:]]
     return "\n".join(lines)
 
 
@@ -408,9 +406,7 @@ def evaluate_outcome(
     decision_match = re.search(r"DECISION:\s*(merge|request_changes|decline)", text, re.IGNORECASE)
     decision = decision_match.group(1).lower() if decision_match else "decline"
 
-    reasoning_match = re.search(
-        r"REASONING:\s*(.+?)(?=\nREVISION_INSTRUCTIONS:|$)", text, re.DOTALL
-    )
+    reasoning_match = re.search(r"REASONING:\s*(.+?)(?=\nREVISION_INSTRUCTIONS:|$)", text, re.DOTALL)
     reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
 
     revision_match = re.search(r"REVISION_INSTRUCTIONS:\s*(.+?)$", text, re.DOTALL)
@@ -428,7 +424,9 @@ def merge_pr(pr_url: str) -> bool:
     gh_cmd = shutil.which("gh") or r"C:\Program Files\GitHub CLI\gh.exe"
     result = subprocess.run(
         [gh_cmd, "pr", "merge", pr_url, "--squash", "--delete-branch", "--yes"],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
     )
     if result.returncode != 0:
         print(f"  WARNING: gh pr merge failed: {result.stderr[:300]}")
@@ -443,12 +441,19 @@ def merge_pr(pr_url: str) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="AI orchestrator loop for ctes-game improvement.")
-    parser.add_argument("--max-iterations", type=int, default=DEFAULT_MAX_ITER,
-                        help=f"Max improvement iterations (default: {DEFAULT_MAX_ITER})")
-    parser.add_argument("--baseline-runs", type=int, default=DEFAULT_BASELINE_RUNS,
-                        help=f"Runs per strategy for baseline (default: {DEFAULT_BASELINE_RUNS})")
-    parser.add_argument("--resume", action="store_true",
-                        help="Resume from saved orchestrator_state.json")
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=DEFAULT_MAX_ITER,
+        help=f"Max improvement iterations (default: {DEFAULT_MAX_ITER})",
+    )
+    parser.add_argument(
+        "--baseline-runs",
+        type=int,
+        default=DEFAULT_BASELINE_RUNS,
+        help=f"Runs per strategy for baseline (default: {DEFAULT_BASELINE_RUNS})",
+    )
+    parser.add_argument("--resume", action="store_true", help="Resume from saved orchestrator_state.json")
     args = parser.parse_args()
 
     client = anthropic.Anthropic()
@@ -491,7 +496,10 @@ def main() -> None:
                 break
 
             write_agent_task(
-                worktree_path, direction, state.baseline, branch,
+                worktree_path,
+                direction,
+                state.baseline,
+                branch,
                 revision_notes=revision_instructions,
             )
 
@@ -510,9 +518,7 @@ def main() -> None:
                 revision_instructions = ""
                 print("  No OUTCOME.md found — declining.")
             else:
-                decision, reasoning, revision_instructions = evaluate_outcome(
-                    client, state, direction, outcome
-                )
+                decision, reasoning, revision_instructions = evaluate_outcome(client, state, direction, outcome)
                 print(f"  Decision: {decision.upper()}")
                 print(f"  Reasoning: {reasoning[:120]}")
 
@@ -537,7 +543,8 @@ def main() -> None:
                         # Pull merged changes into REPO_ROOT
                         subprocess.run(
                             ["git", "pull", "--ff-only"],
-                            cwd=REPO_ROOT, capture_output=True,
+                            cwd=REPO_ROOT,
+                            capture_output=True,
                         )
                         print("  Recomputing baseline...")
                         state.baseline = compute_baseline(runs=args.baseline_runs)
@@ -547,10 +554,7 @@ def main() -> None:
                 break
 
             elif decision == "request_changes" and state.revision_count < MAX_REVISIONS:
-                print(
-                    f"  Requesting changes "
-                    f"(revision {state.revision_count + 1}/{MAX_REVISIONS})."
-                )
+                print(f"  Requesting changes (revision {state.revision_count + 1}/{MAX_REVISIONS}).")
                 remove_worktree(branch)
                 state.revision_count += 1
 
@@ -568,8 +572,10 @@ def main() -> None:
     merges = sum(1 for h in state.history if h["decision"] == "merge")
     declines = sum(1 for h in state.history if h["decision"] == "decline")
     revisions = sum(1 for h in state.history if h["decision"] == "request_changes")
-    print(f"  Total records: {len(state.history)} | Merges: {merges} | "
-          f"Declines: {declines} | Revision requests: {revisions}")
+    print(
+        f"  Total records: {len(state.history)} | Merges: {merges} | "
+        f"Declines: {declines} | Revision requests: {revisions}"
+    )
     print("=" * 72 + "\n")
 
 

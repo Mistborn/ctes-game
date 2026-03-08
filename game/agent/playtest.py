@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import statistics
-import sys
 from typing import Callable, Dict, List
 
 from game.core import config, engine
@@ -25,7 +24,6 @@ from game.core.entities import (
     GameStatus,
 )
 from game.core.state import GameState
-
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -42,13 +40,12 @@ MetricsDict = Dict[str, float]
 # (after the tick has resolved), so it can react to the new state.
 # ---------------------------------------------------------------------------
 
+
 def strategy_food_first(state: GameState) -> None:
     """
     Maximise farmers until there is a surplus of ≥20 food, then diversify.
     Once surplus is established, start staffing a Lumber Mill, then Market.
     """
-    SURPLUS_TARGET = 20  # ticks of buffer we want
-
     # How much food surplus do we currently have above consumption?
     consumption_per_tick = state.colonist_count * config.FOOD_PER_COLONIST_PER_TICK
 
@@ -98,9 +95,7 @@ def strategy_production_rush(state: GameState) -> None:
     to Markets once wood is flowing.
     """
     # Always keep at least 2 farmers to avoid starvation
-    farm_workers = sum(
-        b.workers_assigned for b in state.buildings if b.building_type == BuildingType.FARM
-    )
+    farm_workers = sum(b.workers_assigned for b in state.buildings if b.building_type == BuildingType.FARM)
     if farm_workers < 2:
         _try_add_worker(state, BuildingType.FARM)
         return
@@ -175,9 +170,7 @@ def strategy_gold_rush(state: GameState) -> None:
     Get to the Market as fast as possible and max out gold production.
     Actively moves workers from lumber mill to market once gold income is needed.
     """
-    farm_workers = sum(
-        b.workers_assigned for b in state.buildings if b.building_type == BuildingType.FARM
-    )
+    farm_workers = sum(b.workers_assigned for b in state.buildings if b.building_type == BuildingType.FARM)
     if farm_workers < 1:
         _try_add_worker(state, BuildingType.FARM)
         return
@@ -228,6 +221,7 @@ STRATEGIES: Dict[str, Strategy] = {
 # Run a single strategy for N ticks → metrics dict
 # ---------------------------------------------------------------------------
 
+
 def run_once(strategy: Strategy, max_ticks: int = 1000) -> MetricsDict:
     """Run one game with the given strategy, return a metrics dictionary."""
     return run_once_from_state(engine.new_game(), strategy, max_ticks)
@@ -272,6 +266,7 @@ def run_once_from_state(
 # ---------------------------------------------------------------------------
 # Run a strategy N times and return aggregate stats
 # ---------------------------------------------------------------------------
+
 
 def run_strategy(
     name: str,
@@ -326,6 +321,7 @@ def run_strategy_from_state(
 # Balance report: run all 4 strategies and print a formatted table
 # ---------------------------------------------------------------------------
 
+
 def run_balance_report(runs: int = 20, max_ticks: int = 1000) -> None:
     print("=" * 72)
     print("  KINGDOMS OF THE FORGOTTEN — Agent Balance Report")
@@ -353,12 +349,7 @@ def run_balance_report(runs: int = 20, max_ticks: int = 1000) -> None:
             if key not in stats:
                 continue
             s = stats[key]
-            row = (
-                f"  {label:<22} "
-                f"{s['mean']:>{col_w}.2f} "
-                f"{s['min']:>{col_w}.2f} "
-                f"{s['max']:>{col_w}.2f}"
-            )
+            row = f"  {label:<22} {s['mean']:>{col_w}.2f} {s['min']:>{col_w}.2f} {s['max']:>{col_w}.2f}"
             print(row)
 
     print("\n" + "=" * 72)
@@ -371,11 +362,11 @@ def run_balance_report(runs: int = 20, max_ticks: int = 1000) -> None:
 # ---------------------------------------------------------------------------
 
 _MAX_WORKERS_MAP = {
-    BuildingType.FARM:        config.FARM_MAX_WORKERS,
+    BuildingType.FARM: config.FARM_MAX_WORKERS,
     BuildingType.LUMBER_MILL: config.LUMBERMILL_MAX_WORKERS,
-    BuildingType.MARKET:      config.MARKET_MAX_WORKERS,
-    BuildingType.QUARRY:      config.QUARRY_MAX_WORKERS,
-    BuildingType.SAWMILL:     config.SAWMILL_MAX_WORKERS,
+    BuildingType.MARKET: config.MARKET_MAX_WORKERS,
+    BuildingType.QUARRY: config.QUARRY_MAX_WORKERS,
+    BuildingType.SAWMILL: config.SAWMILL_MAX_WORKERS,
 }
 
 
@@ -413,6 +404,7 @@ def _try_move_worker(state: GameState, from_btype: BuildingType, to_btype: Build
 # LLM Evaluator — requires `anthropic` package
 # An LLM writes a new Python strategy function at each checkpoint.
 # ---------------------------------------------------------------------------
+
 
 def _format_state_for_llm(state: GameState) -> str:
     """Return a compact human-readable summary of the current game state."""
@@ -455,13 +447,36 @@ def _compile_strategy(code: str) -> Strategy:
     Returns the `strategy` callable, or raises ValueError.
     """
     _SAFE_BUILTINS = {
-        "abs": abs, "all": all, "any": any, "bool": bool, "dict": dict,
-        "enumerate": enumerate, "filter": filter, "float": float, "int": int,
-        "isinstance": isinstance, "iter": iter, "len": len, "list": list,
-        "map": map, "max": max, "min": min, "next": next, "print": print,
-        "range": range, "round": round, "set": set, "sorted": sorted,
-        "str": str, "sum": sum, "tuple": tuple, "type": type, "zip": zip,
-        "None": None, "True": True, "False": False,
+        "abs": abs,
+        "all": all,
+        "any": any,
+        "bool": bool,
+        "dict": dict,
+        "enumerate": enumerate,
+        "filter": filter,
+        "float": float,
+        "int": int,
+        "isinstance": isinstance,
+        "iter": iter,
+        "len": len,
+        "list": list,
+        "map": map,
+        "max": max,
+        "min": min,
+        "next": next,
+        "print": print,
+        "range": range,
+        "round": round,
+        "set": set,
+        "sorted": sorted,
+        "str": str,
+        "sum": sum,
+        "tuple": tuple,
+        "type": type,
+        "zip": zip,
+        "None": None,
+        "True": True,
+        "False": False,
     }
     namespace: Dict = {
         "__builtins__": _SAFE_BUILTINS,
@@ -488,8 +503,9 @@ def _build_system_prompt(checkpoint_ticks: int) -> str:
     automatically when the game code changes.
     """
     import dataclasses
-    from game.core.state import GameState
+
     from game.core.entities import Building
+    from game.core.state import GameState
 
     # --- Enums ---
     building_types = "  BuildingType." + " / ".join(bt.name for bt in BuildingType)
@@ -502,19 +518,18 @@ def _build_system_prompt(checkpoint_ticks: int) -> str:
         (ActionResearchTech, "spend gold to unlock a tech"),
     ]
     action_lines = [
-        f"  {cls.__name__}({', '.join(f.name for f in dataclasses.fields(cls))})  — {note}"
-        for cls, note in action_info
+        f"  {cls.__name__}({', '.join(f.name for f in dataclasses.fields(cls))})  — {note}" for cls, note in action_info
     ]
 
     # --- GameState fields (skip internal bookkeeping) ---
     _SKIP_STATE = {
-        "next_colonist_id", "next_building_id",
-        "speed_multiplier", "paused",
+        "next_colonist_id",
+        "next_building_id",
+        "speed_multiplier",
+        "paused",
     }
     state_field_lines = [
-        f"  state.{f.name}  ({f.type})"
-        for f in dataclasses.fields(GameState)
-        if f.name not in _SKIP_STATE
+        f"  state.{f.name}  ({f.type})" for f in dataclasses.fields(GameState) if f.name not in _SKIP_STATE
     ]
     state_field_lines += [
         "  state.colonist_count  (int, property — total alive)",
@@ -526,11 +541,29 @@ def _build_system_prompt(checkpoint_ticks: int) -> str:
 
     # --- Config constants: include numeric game-logic constants, skip UI layout ---
     _UI_SUBSTRINGS = {
-        "COLOR", "FONT", "PANEL", "BAR", "BTN", "PIP", "HINT", "DIVIDER",
-        "SECTION_GAP", "LINE_HEIGHT", "PROGRESS", "RESOURCE_VALUE",
-        "RESOURCE_RATE", "RESOURCE_ROW", "BUILDING_ROW", "BUILDING_HINT",
-        "BUILDING_GAP", "WINDOW_WIDTH", "WINDOW_HEIGHT", "WINDOW_TITLE",
-        "TARGET_FPS", "SPEED_MULTIPLIERS", "SECONDS_PER_TICK",
+        "COLOR",
+        "FONT",
+        "PANEL",
+        "BAR",
+        "BTN",
+        "PIP",
+        "HINT",
+        "DIVIDER",
+        "SECTION_GAP",
+        "LINE_HEIGHT",
+        "PROGRESS",
+        "RESOURCE_VALUE",
+        "RESOURCE_RATE",
+        "RESOURCE_ROW",
+        "BUILDING_ROW",
+        "BUILDING_HINT",
+        "BUILDING_GAP",
+        "WINDOW_WIDTH",
+        "WINDOW_HEIGHT",
+        "WINDOW_TITLE",
+        "TARGET_FPS",
+        "SPEED_MULTIPLIERS",
+        "SECONDS_PER_TICK",
     }
     config_lines = [
         f"  config.{name} = {val}"
@@ -548,39 +581,42 @@ def _build_system_prompt(checkpoint_ticks: int) -> str:
         for t in config.RESEARCH_TECHS
     ]
 
-    return "\n".join([
-        'You are playing "Kingdoms of the Forgotten", a medieval colony builder.',
-        f"Each checkpoint write a Python strategy function for the next {checkpoint_ticks} ticks.",
-        "",
-        "=== IN SCOPE (do NOT use import statements) ===",
-        "  engine  config  BuildingType  GameStatus",
-        "  ActionAssignWorker  ActionBuildBuilding  ActionResearchTech",
-        building_types,
-        game_statuses,
-        "",
-        "=== ACTIONS ===",
-        *action_lines,
-        "",
-        "=== GAME STATE FIELDS ===",
-        *state_field_lines,
-        "",
-        "=== BUILDING FIELDS ===",
-        f"  {building_fields}",
-        "",
-        "=== RESEARCH TECHS ===",
-        *research_lines,
-        "  Pattern: if state.gold >= <cost> and '<tech_id>' not in state.researched_tech_ids:",
-        "               engine.apply_action(state, ActionResearchTech('<tech_id>'))",
-        "",
-        "=== CONFIG CONSTANTS (use these exact names — do not guess) ===",
-        *config_lines,
-        "",
-        "=== FUNCTION SIGNATURE ===",
-        "  def strategy(state) -> None:",
-        "      # called once per tick after engine.tick(); act via engine.apply_action()",
-        "",
-        f"Win: gold >= {config.WIN_GOLD_TARGET_BASE} (run 1), {config.WIN_GOLD_TARGET_RUN2} (run 2), x{config.WIN_GOLD_TARGET_RUN_MULTIPLIER} each run after. Lose: all colonists starve.",
-    ])
+    return "\n".join(
+        [
+            'You are playing "Kingdoms of the Forgotten", a medieval colony builder.',
+            f"Each checkpoint write a Python strategy function for the next {checkpoint_ticks} ticks.",
+            "",
+            "=== IN SCOPE (do NOT use import statements) ===",
+            "  engine  config  BuildingType  GameStatus",
+            "  ActionAssignWorker  ActionBuildBuilding  ActionResearchTech",
+            building_types,
+            game_statuses,
+            "",
+            "=== ACTIONS ===",
+            *action_lines,
+            "",
+            "=== GAME STATE FIELDS ===",
+            *state_field_lines,
+            "",
+            "=== BUILDING FIELDS ===",
+            f"  {building_fields}",
+            "",
+            "=== RESEARCH TECHS ===",
+            *research_lines,
+            "  Pattern: if state.gold >= <cost> and '<tech_id>' not in state.researched_tech_ids:",
+            "               engine.apply_action(state, ActionResearchTech('<tech_id>'))",
+            "",
+            "=== CONFIG CONSTANTS (use these exact names — do not guess) ===",
+            *config_lines,
+            "",
+            "=== FUNCTION SIGNATURE ===",
+            "  def strategy(state) -> None:",
+            "      # called once per tick after engine.tick(); act via engine.apply_action()",
+            "",
+            f"Win: gold >= {config.WIN_GOLD_TARGET_BASE} (run 1), {config.WIN_GOLD_TARGET_RUN2} (run 2), "
+            f"x{config.WIN_GOLD_TARGET_RUN_MULTIPLIER} each run after. Lose: all colonists starve.",
+        ]
+    )
 
 
 def _ask_llm_for_strategy(
@@ -598,8 +634,7 @@ def _ask_llm_for_strategy(
 
     if history:
         hist_parts = [
-            f"Checkpoint {h['checkpoint']}: {h['rationale']}\n  Result: {h['outcome_summary']}"
-            for h in history[-5:]
+            f"Checkpoint {h['checkpoint']}: {h['rationale']}\n  Result: {h['outcome_summary']}" for h in history[-5:]
         ]
         history_text = "\n".join(hist_parts)
     else:
@@ -663,8 +698,7 @@ def _write_markdown_log(
             f"gold={final_state.gold:.1f}  stone={final_state.stone:.1f}  "
             f"planks={final_state.planks:.1f}"
         ),
-        f"Peak colonists: {final_state.peak_colonists}  |  "
-        f"Starvation events: {final_state.starvation_events}",
+        f"Peak colonists: {final_state.peak_colonists}  |  Starvation events: {final_state.starvation_events}",
         "",
         "---",
     ]
@@ -700,7 +734,7 @@ def _run_llm_agent_one_run(
     model: str,
     checkpoint_ticks: int,
     num_checkpoints: int,
-    meta: "MetaState",
+    meta: "MetaState",  # noqa: F821
     log_path: str,
 ) -> MetricsDict:
     """Run a single game with the LLM agent. Returns metrics for that run."""
@@ -730,9 +764,7 @@ def _run_llm_agent_one_run(
         print(f"\n  Checkpoint {checkpoint} (tick {tick_start}) — querying {model}...")
 
         try:
-            code, rationale = _ask_llm_for_strategy(
-                client, model, state_summary, checkpoint, checkpoint_ticks, entries
-            )
+            code, rationale = _ask_llm_for_strategy(client, model, state_summary, checkpoint, checkpoint_ticks, entries)
             strategy_fn = _compile_strategy(code)
             preview = rationale[:80] + ("..." if len(rationale) > 80 else "")
             print(f"  Rationale: {preview}")
@@ -761,14 +793,16 @@ def _run_llm_agent_one_run(
         )
         print(f"  Result: {outcome}")
 
-        entries.append({
-            "checkpoint": checkpoint,
-            "tick_start": tick_start,
-            "state_before": state_summary,
-            "rationale": rationale,
-            "code": code,
-            "outcome_summary": outcome,
-        })
+        entries.append(
+            {
+                "checkpoint": checkpoint,
+                "tick_start": tick_start,
+                "state_before": state_summary,
+                "rationale": rationale,
+                "code": code,
+                "outcome_summary": outcome,
+            }
+        )
 
     _write_markdown_log(log_path, entries, state, model, checkpoint_ticks)
     print(f"\n{'=' * 72}")
@@ -800,11 +834,13 @@ def run_llm_agent(
     If num_runs > 1, continues to the next run only if the previous one was won.
     Returns metrics for the final run.
     """
-    import anthropic
     import datetime
+
+    import anthropic
 
     client = anthropic.Anthropic()
     from game.meta.progression import MetaState
+
     meta = MetaState()
 
     last_metrics: MetricsDict = {}
@@ -812,9 +848,7 @@ def run_llm_agent(
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         run_log = log_path if (num_runs == 1 and log_path) else f"llm_agent_run{meta.run_number}_{ts}.md"
 
-        metrics = _run_llm_agent_one_run(
-            client, model, checkpoint_ticks, num_checkpoints, meta, run_log
-        )
+        metrics = _run_llm_agent_one_run(client, model, checkpoint_ticks, num_checkpoints, meta, run_log)
         last_metrics = metrics
 
         if metrics["won"] != 1.0:
@@ -823,7 +857,8 @@ def run_llm_agent(
 
         meta.run_number += 1
         if run_idx + 1 < num_runs:
-            print(f"  Starting run {meta.run_number} (target: {round(config.WIN_GOLD_TARGET_RUN2 * config.WIN_GOLD_TARGET_RUN_MULTIPLIER ** (meta.run_number - 2))} gold)...\n")
+            target = round(config.WIN_GOLD_TARGET_RUN2 * config.WIN_GOLD_TARGET_RUN_MULTIPLIER ** (meta.run_number - 2))
+            print(f"  Starting run {meta.run_number} (target: {target} gold)...\n")
 
     return last_metrics
 
@@ -831,6 +866,7 @@ def run_llm_agent(
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Headless colony builder balance tester.")
@@ -852,8 +888,10 @@ def main() -> None:
 
     # Determine starting state
     if args.load:
-        from game.core.save import load_game
         from pathlib import Path
+
+        from game.core.save import load_game
+
         starting_state = load_game(Path(args.load))
         print(f"Loaded save: {args.load} (tick {starting_state.tick})")
     else:
@@ -872,7 +910,8 @@ def main() -> None:
             print(f"\n  Strategy: {name.upper()}")
             stats = run_strategy_from_state(starting_state, name, strat, runs=args.runs, max_ticks=args.ticks)
             for metric, values in stats.items():
-                print(f"    {metric:<22} mean={values['mean']:>8.2f}  min={values['min']:>8.2f}  max={values['max']:>8.2f}")
+                mean, mn, mx = values["mean"], values["min"], values["max"]
+                print(f"    {metric:<22} mean={mean:>8.2f}  min={mn:>8.2f}  max={mx:>8.2f}")
     else:
         run_balance_report(runs=args.runs, max_ticks=args.ticks)
 

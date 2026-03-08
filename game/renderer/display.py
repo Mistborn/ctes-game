@@ -8,12 +8,14 @@ Never imported by core/. Never writes to GameState — only emits Actions.
 from __future__ import annotations
 
 import math
-import pygame
 import sys
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import Any, List, Optional
+
+import pygame
 
 from game.core import config
+from game.core.engine import get_season
 from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
@@ -27,9 +29,7 @@ from game.core.entities import (
     GameStatus,
 )
 from game.core.state import GameState
-from game.core.engine import get_season
 from game.meta.progression import compute_lp_earned
-
 
 # ---------------------------------------------------------------------------
 # Colour aliases
@@ -40,6 +40,7 @@ C = config  # short alias
 # ---------------------------------------------------------------------------
 # Hex map helpers (module-level, no Pygame, no state mutation)
 # ---------------------------------------------------------------------------
+
 
 def _axial_to_pixel(q: int, r: int, center_x: int, center_y: int, hex_size: float) -> tuple:
     """Flat-top axial → pixel."""
@@ -65,11 +66,7 @@ def _pixel_to_axial(px: int, py: int, center_x: int, center_y: int, hex_size: fl
 
 def _hex_polygon(cx: int, cy: int, size: float) -> list:
     """6 vertices of a flat-top hex."""
-    return [
-        (cx + size * math.cos(math.radians(60 * i)),
-         cy + size * math.sin(math.radians(60 * i)))
-        for i in range(6)
-    ]
+    return [(cx + size * math.cos(math.radians(60 * i)), cy + size * math.sin(math.radians(60 * i))) for i in range(6)]
 
 
 def _hex_has_explored_neighbor(hex_tiles: dict, q: int, r: int) -> bool:
@@ -83,6 +80,7 @@ def _hex_has_explored_neighbor(hex_tiles: dict, q: int, r: int) -> bool:
 # ---------------------------------------------------------------------------
 # Button helper
 # ---------------------------------------------------------------------------
+
 
 class Button:
     """A simple clickable rect that emits an action when clicked."""
@@ -138,6 +136,7 @@ class Button:
 # Main Renderer
 # ---------------------------------------------------------------------------
 
+
 class Renderer:
     """
     Owns the Pygame window, draws the UI, and collects player actions.
@@ -155,14 +154,12 @@ class Renderer:
     def __init__(self) -> None:
         pygame.init()
         pygame.display.set_caption(C.WINDOW_TITLE)
-        self.screen = pygame.display.set_mode(
-            (C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.NOFRAME
-        )
+        self.screen = pygame.display.set_mode((C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.NOFRAME)
         self.clock = pygame.time.Clock()
 
         # Fonts
         self.font_large = pygame.font.SysFont("Consolas", C.FONT_SIZE_LARGE, bold=True)
-        self.font_med   = pygame.font.SysFont("Consolas", C.FONT_SIZE_MEDIUM)
+        self.font_med = pygame.font.SysFont("Consolas", C.FONT_SIZE_MEDIUM)
         self.font_small = pygame.font.SysFont("Consolas", C.FONT_SIZE_SMALL)
 
         # Button registry — rebuilt each frame
@@ -299,7 +296,9 @@ class Renderer:
             if event.type == pygame.KEYDOWN:
                 # Escape → open/close escape menu (while playing OR on endgame overlay)
                 if event.key == pygame.K_ESCAPE and state.status in (
-                    GameStatus.PLAYING, GameStatus.WIN, GameStatus.LOSE
+                    GameStatus.PLAYING,
+                    GameStatus.WIN,
+                    GameStatus.LOSE,
                 ):
                     if self._show_escape_menu:
                         self._show_escape_menu = False
@@ -316,11 +315,15 @@ class Renderer:
                     state.paused = not state.paused
 
                 # Tab → cycle speed (only while playing and not paused)
-                elif event.key == pygame.K_TAB and state.status == GameStatus.PLAYING and not state.paused and not self._show_escape_menu:
+                elif (
+                    event.key == pygame.K_TAB
+                    and state.status == GameStatus.PLAYING
+                    and not state.paused
+                    and not self._show_escape_menu
+                ):
                     idx = C.SPEED_MULTIPLIERS.index(state.speed_multiplier)
                     next_idx = (idx + 1) % len(C.SPEED_MULTIPLIERS)
                     actions.append(ActionSetSpeed(C.SPEED_MULTIPLIERS[next_idx]))
-
 
             # Escape menu buttons (always active when menu is open)
             if self._show_escape_menu:
@@ -355,10 +358,14 @@ class Renderer:
 
             # World map: left-click to explore hex
             _RESOURCE_BAR_H = 40
-            if (self._current_view == "world_map" and not state.paused
-                    and not self._show_escape_menu
-                    and event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
-                    and _RESOURCE_BAR_H <= event.pos[1] < C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT):
+            if (
+                self._current_view == "world_map"
+                and not state.paused
+                and not self._show_escape_menu
+                and event.type == pygame.MOUSEBUTTONDOWN
+                and event.button == 1
+                and _RESOURCE_BAR_H <= event.pos[1] < C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
+            ):
                 map_base_x = C.WINDOW_WIDTH // 2
                 map_base_y = (_RESOURCE_BAR_H + C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT) // 2
                 cx = map_base_x + self._hex_scroll_offset[0]
@@ -373,9 +380,7 @@ class Renderer:
             # Mouse wheel scrolls the right panel (colony view only)
             if event.type == pygame.MOUSEWHEEL and self._current_view == "colony":
                 panel_x = C.WINDOW_WIDTH - C.RIGHT_PANEL_WIDTH
-                panel_rect = pygame.Rect(
-                    panel_x, 0, C.RIGHT_PANEL_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
-                )
+                panel_rect = pygame.Rect(panel_x, 0, C.RIGHT_PANEL_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT)
                 log_rect = pygame.Rect(
                     0, self._log_area_top, C.LEFT_PANEL_WIDTH, self._log_area_bottom - self._log_area_top
                 )
@@ -392,7 +397,6 @@ class Renderer:
                     self._log_scroll = max(0, min(self._log_scroll, max_log_scroll))
 
         return actions
-
 
     # ------------------------------------------------------------------
     # Public: tick accumulator
@@ -421,7 +425,7 @@ class Renderer:
     # ------------------------------------------------------------------
 
     def draw(self, state: GameState) -> None:
-        self._buttons = []       # reset each frame
+        self._buttons = []  # reset each frame
         self._menu_buttons = []  # reset each frame
         self.screen.fill(C.COLOR_BG)
 
@@ -453,9 +457,7 @@ class Renderer:
     # ------------------------------------------------------------------
 
     def _draw_left_panel(self, state: GameState) -> None:
-        panel_rect = pygame.Rect(
-            0, 0, C.LEFT_PANEL_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
-        )
+        panel_rect = pygame.Rect(0, 0, C.LEFT_PANEL_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, panel_rect)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, panel_rect, width=1)
 
@@ -467,12 +469,12 @@ class Renderer:
         self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
         y += C.DIVIDER_PADDING
 
-        y = self._draw_resource_row("Food",   state.food,   state.food_rate,   C.COLOR_FOOD,   x, y)
-        y = self._draw_resource_row("Wood",   state.wood,   state.wood_rate,   C.COLOR_WOOD,   x, y)
-        y = self._draw_resource_row("Gold",   state.gold,   state.gold_rate,   C.COLOR_GOLD,   x, y)
-        y = self._draw_resource_row("Stone",  state.stone,  state.stone_rate,  C.COLOR_STONE,  x, y)
+        y = self._draw_resource_row("Food", state.food, state.food_rate, C.COLOR_FOOD, x, y)
+        y = self._draw_resource_row("Wood", state.wood, state.wood_rate, C.COLOR_WOOD, x, y)
+        y = self._draw_resource_row("Gold", state.gold, state.gold_rate, C.COLOR_GOLD, x, y)
+        y = self._draw_resource_row("Stone", state.stone, state.stone_rate, C.COLOR_STONE, x, y)
         y = self._draw_resource_row("Planks", state.planks, state.planks_rate, C.COLOR_PLANKS, x, y)
-        y = self._draw_resource_row("Iron",   state.iron,   state.iron_rate,   C.COLOR_IRON,   x, y)
+        y = self._draw_resource_row("Iron", state.iron, state.iron_rate, C.COLOR_IRON, x, y)
 
         y += C.SECTION_GAP
         self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
@@ -482,12 +484,12 @@ class Renderer:
         self._blit("WIN TARGET", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
         y += C.LINE_HEIGHT_MED
         progress = min(state.gold / state.win_gold_target, 1.0)
-        bar_w    = C.LEFT_PANEL_WIDTH - x * 2
-        bar_bg   = pygame.Rect(x, y, bar_w, C.PROGRESS_BAR_HEIGHT)
+        bar_w = C.LEFT_PANEL_WIDTH - x * 2
+        bar_bg = pygame.Rect(x, y, bar_w, C.PROGRESS_BAR_HEIGHT)
         bar_fill = pygame.Rect(x, y, int(bar_w * progress), C.PROGRESS_BAR_HEIGHT)
-        pygame.draw.rect(self.screen, C.COLOR_BTN_NORMAL,    bar_bg,   border_radius=3)
-        pygame.draw.rect(self.screen, C.COLOR_GOLD,          bar_fill, border_radius=3)
-        pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER,  bar_bg,   width=1, border_radius=3)
+        pygame.draw.rect(self.screen, C.COLOR_BTN_NORMAL, bar_bg, border_radius=3)
+        pygame.draw.rect(self.screen, C.COLOR_GOLD, bar_fill, border_radius=3)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, bar_bg, width=1, border_radius=3)
         y += C.PROGRESS_BAR_HEIGHT + 6
         self._blit(f"{state.gold:.0f} / {state.win_gold_target} Gold", self.font_small, C.COLOR_GOLD, x, y)
         y += C.LINE_HEIGHT_MED
@@ -506,10 +508,15 @@ class Renderer:
         y += C.LINE_HEIGHT_SMALL
         self._blit(
             f"Consumption: {state.colonist_count * C.FOOD_PER_COLONIST_PER_TICK:.1f}/tick",
-            self.font_small, C.COLOR_TEXT_SECONDARY, x, y,
+            self.font_small,
+            C.COLOR_TEXT_SECONDARY,
+            x,
+            y,
         )
         y += C.LINE_HEIGHT_SMALL
-        recruit_cost = round(C.RECRUIT_CITIZEN_FOOD_COST * (C.COLONIST_COST_SCALE ** (state.colonist_count - C.STARTING_COLONISTS)))
+        recruit_cost = round(
+            C.RECRUIT_CITIZEN_FOOD_COST * (C.COLONIST_COST_SCALE ** (state.colonist_count - C.STARTING_COLONISTS))
+        )
         can_recruit = state.food >= recruit_cost
         recruit_btn = Button(
             rect=pygame.Rect(x, y, C.LEFT_PANEL_WIDTH - x * 2, C.BUILD_BTN_HEIGHT),
@@ -526,8 +533,7 @@ class Renderer:
         if state.has_barracks:
             food_cost = C.TRAIN_SOLDIER_COST["food"]
             iron_cost = C.TRAIN_SOLDIER_COST["iron"]
-            can_train = (state.food >= food_cost and state.iron >= iron_cost
-                         and state.soldiers < C.BARRACKS_MAX_SOLDIERS)
+            can_train = state.food >= food_cost and state.iron >= iron_cost and state.soldiers < C.BARRACKS_MAX_SOLDIERS
             train_label = (
                 f"Train Soldier  ({food_cost:.0f} Food, {iron_cost:.0f} Iron)"
                 f"  [{state.soldiers}/{C.BARRACKS_MAX_SOLDIERS}]"
@@ -575,9 +581,9 @@ class Renderer:
 
         log_colors = {
             "warning": (220, 160, 60),
-            "winter":  C.COLOR_WINTER,
-            "spring":  C.COLOR_SEASON_NORMAL,
-            "summer":  (160, 200, 80),
+            "winter": C.COLOR_WINTER,
+            "spring": C.COLOR_SEASON_NORMAL,
+            "summer": (160, 200, 80),
         }
         y_log = y - self._log_scroll
         if not state.info_log:
@@ -585,7 +591,7 @@ class Renderer:
             y_log += C.LINE_HEIGHT_SMALL
         else:
             for entry in reversed(state.info_log):
-                tick_n, message, msg_type = entry[0], entry[1], entry[2]
+                message, msg_type = entry[1], entry[2]
                 color = log_colors.get(msg_type, C.COLOR_TEXT_SECONDARY)
                 y_log = self._blit_wrapped(message, self.font_small, color, x, y_log, log_max_w, C.LINE_HEIGHT_SMALL)
 
@@ -594,23 +600,21 @@ class Renderer:
 
         # Scrollbar for info log
         if self._log_content_height > log_area_h:
-            track_rect = pygame.Rect(C.LEFT_PANEL_WIDTH - scrollbar_w - 3, log_area_top + 2, scrollbar_w, log_area_h - 4)
+            track_rect = pygame.Rect(
+                C.LEFT_PANEL_WIDTH - scrollbar_w - 3, log_area_top + 2, scrollbar_w, log_area_h - 4
+            )
             pygame.draw.rect(self.screen, C.COLOR_BTN_NORMAL, track_rect, border_radius=4)
             thumb_h = max(20, int(log_area_h * log_area_h / self._log_content_height))
             thumb_y = int(self._log_scroll / self._log_content_height * log_area_h)
-            thumb_rect = pygame.Rect(C.LEFT_PANEL_WIDTH - scrollbar_w - 3, log_area_top + 2 + thumb_y, scrollbar_w, thumb_h)
+            thumb_rect = pygame.Rect(
+                C.LEFT_PANEL_WIDTH - scrollbar_w - 3, log_area_top + 2 + thumb_y, scrollbar_w, thumb_h
+            )
             pygame.draw.rect(self.screen, C.COLOR_TEXT_SECONDARY, thumb_rect, border_radius=4)
 
-    def _draw_resource_row(
-        self, label: str, value: float, rate: float, color: tuple, x: int, y: int
-    ) -> int:
+    def _draw_resource_row(self, label: str, value: float, rate: float, color: tuple, x: int, y: int) -> int:
         self._blit(f"{label}:", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
         self._blit(f"{value:>7.1f}", self.font_med, color, x + C.RESOURCE_VALUE_X, y)
-        rate_color = (
-            C.COLOR_POSITIVE if rate > 0 else
-            C.COLOR_NEGATIVE if rate < 0 else
-            C.COLOR_TEXT_SECONDARY
-        )
+        rate_color = C.COLOR_POSITIVE if rate > 0 else C.COLOR_NEGATIVE if rate < 0 else C.COLOR_TEXT_SECONDARY
         self._blit(f"{rate:+.2f}/tick", self.font_small, rate_color, x + C.RESOURCE_RATE_X, y + 3)
         return y + C.RESOURCE_ROW_HEIGHT
 
@@ -629,8 +633,12 @@ class Renderer:
         panel_y = C.PANEL_PADDING
 
         num_buttons = int(state.auto_hire_unlocked) + int(state.auto_assign_unlocked)
-        panel_h = (C.PANEL_PADDING * 2 + C.LINE_HEIGHT_LARGE + C.DIVIDER_PADDING
-                   + num_buttons * (C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP))
+        panel_h = (
+            C.PANEL_PADDING * 2
+            + C.LINE_HEIGHT_LARGE
+            + C.DIVIDER_PADDING
+            + num_buttons * (C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP)
+        )
 
         panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, panel_rect)
@@ -699,9 +707,15 @@ class Renderer:
         self._blit("CONSTRUCT", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
         y += C.LINE_HEIGHT_MED
 
-        for btype in [BuildingType.FARM, BuildingType.LUMBER_MILL, BuildingType.MARKET,
-                      BuildingType.QUARRY, BuildingType.SAWMILL, BuildingType.IRON_MINE,
-                      BuildingType.BARRACKS]:
+        for btype in [
+            BuildingType.FARM,
+            BuildingType.LUMBER_MILL,
+            BuildingType.MARKET,
+            BuildingType.QUARRY,
+            BuildingType.SAWMILL,
+            BuildingType.IRON_MINE,
+            BuildingType.BARRACKS,
+        ]:
             y = self._draw_build_button(state, btype, x, y)
             y += C.BUILD_BTN_GAP
 
@@ -725,10 +739,10 @@ class Renderer:
             self._draw_right_scrollbar(panel_x, panel_height)
 
     def _draw_building_row(self, state: GameState, building, x: int, y: int) -> int:
-        btype   = building.building_type
+        btype = building.building_type
         workers = building.workers_assigned
-        max_w   = self._max_workers(btype)
-        idle    = state.idle_colonists
+        max_w = self._max_workers(btype)
+        idle = state.idle_colonists
 
         self._blit(f"[{building.id}] {btype.value}", self.font_med, C.COLOR_TEXT_PRIMARY, x, y)
 
@@ -775,7 +789,7 @@ class Renderer:
 
     def _draw_build_button(self, state: GameState, btype: BuildingType, x: int, y: int) -> int:
         existing = sum(1 for b in state.buildings if b.building_type == btype)
-        multiplier = 2 ** existing
+        multiplier = 2**existing
 
         if btype == BuildingType.IRON_MINE:
             stone_cost = C.IRON_MINE_BUILD_COST.get("stone", 0) * multiplier
@@ -792,8 +806,13 @@ class Renderer:
             label = f"Build {btype.value}  (cost: {cost:.0f} Wood)"
 
         btn_rect = pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT)
-        btn = Button(rect=btn_rect, label=label, action=ActionBuildBuilding(building_type=btype),
-                     enabled=can_afford, font=self.font_small)
+        btn = Button(
+            rect=btn_rect,
+            label=label,
+            action=ActionBuildBuilding(building_type=btype),
+            enabled=can_afford,
+            font=self.font_small,
+        )
         self._buttons.append(btn)
         btn.draw(self.screen)
         return y + C.BUILD_BTN_HEIGHT + 4
@@ -815,20 +834,19 @@ class Renderer:
 
     def _draw_world_map(self, state: GameState) -> None:
         _RESOURCE_BAR_H = 40
-        map_area_top    = _RESOURCE_BAR_H
+        map_area_top = _RESOURCE_BAR_H
         map_area_bottom = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
 
         # --- Compact resource bar at top ---
         bar_rect = pygame.Rect(0, 0, C.WINDOW_WIDTH, _RESOURCE_BAR_H)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, bar_rect)
-        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER,
-                         (0, _RESOURCE_BAR_H), (C.WINDOW_WIDTH, _RESOURCE_BAR_H))
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (0, _RESOURCE_BAR_H), (C.WINDOW_WIDTH, _RESOURCE_BAR_H))
         res_y = (_RESOURCE_BAR_H - C.FONT_SIZE_SMALL) // 2
         rx = C.PANEL_PADDING
         for text, color in [
-            (f"Food: {state.food:.0f}",   C.COLOR_FOOD),
-            (f"Wood: {state.wood:.0f}",   C.COLOR_WOOD),
-            (f"Gold: {state.gold:.0f}",   C.COLOR_GOLD),
+            (f"Food: {state.food:.0f}", C.COLOR_FOOD),
+            (f"Wood: {state.wood:.0f}", C.COLOR_WOOD),
+            (f"Gold: {state.gold:.0f}", C.COLOR_GOLD),
             (f"Stone: {state.stone:.0f}", C.COLOR_STONE),
             (f"Planks: {state.planks:.0f}", C.COLOR_PLANKS),
             (f"Iron: {state.iron:.0f}", C.COLOR_IRON),
@@ -864,7 +882,7 @@ class Renderer:
             px, py = _axial_to_pixel(q, r, cx, cy, hex_size)
             vertices = _hex_polygon(px, py, hex_size - 2)
             explored = tile.get("explored", False)
-            terrain  = tile.get("terrain", "plains")
+            terrain = tile.get("terrain", "plains")
 
             is_explorable = not explored and _hex_has_explored_neighbor(state.hex_tiles, q, r)
 
@@ -901,7 +919,6 @@ class Renderer:
                 border_color = C.HEX_FOG_BORDER_COLOR if is_explorable else C.COLOR_PANEL_BORDER
                 pygame.draw.polygon(self.screen, border_color, vertices, 1)
 
-
         self.screen.set_clip(None)
 
         # Fixed Fight Boss buttons (top-left) for all revealed boss hexes
@@ -915,9 +932,7 @@ class Renderer:
                 self._draw_hex_tooltip(state, tile, hovered_hex[0], hovered_hex[1], (hex_px, hex_py))
 
         # Hint
-        hint_surf = self.font_small.render(
-            "Left-click to explore  |  Right-drag to pan", True, C.COLOR_TEXT_DISABLED
-        )
+        hint_surf = self.font_small.render("Left-click to explore  |  Right-drag to pan", True, C.COLOR_TEXT_DISABLED)
         self.screen.blit(hint_surf, (C.PANEL_PADDING, map_area_bottom - C.LINE_HEIGHT_SMALL - 4))
 
     def _draw_boss_buttons(self, state: GameState, map_area_top: int) -> None:
@@ -962,7 +977,7 @@ class Renderer:
             self._buttons.append(btn)
 
     def _draw_hex_tooltip(self, state: GameState, tile: dict, q: int, r: int, hex_pos: tuple) -> None:
-        terrain  = tile.get("terrain", "unknown")
+        terrain = tile.get("terrain", "unknown")
         explored = tile.get("explored", False)
         ring = max(abs(q), abs(r), abs(q + r))
 
@@ -991,27 +1006,31 @@ class Renderer:
                 if cost:
                     cost_items = [f"{v} {k.title()}" for k, v in cost.items()]
                     for i in range(0, len(cost_items), 2):
-                        chunk = "  ".join(cost_items[i:i + 2])
+                        chunk = "  ".join(cost_items[i : i + 2])
                         prefix = "Cost: " if i == 0 else "      "
                         lines.append((prefix + chunk, C.COLOR_TEXT_PRIMARY))
                 can_afford = (
-                    state.wood   >= cost.get("wood", 0)
-                    and state.stone  >= cost.get("stone", 0)
-                    and state.gold   >= cost.get("gold", 0)
+                    state.wood >= cost.get("wood", 0)
+                    and state.stone >= cost.get("stone", 0)
+                    and state.gold >= cost.get("gold", 0)
                     and state.planks >= cost.get("planks", 0)
                 )
-                lines.append(("Click to explore" if can_afford else "Not enough resources",
-                               C.COLOR_POSITIVE if can_afford else C.COLOR_NEGATIVE))
+                lines.append(
+                    (
+                        "Click to explore" if can_afford else "Not enough resources",
+                        C.COLOR_POSITIVE if can_afford else C.COLOR_NEGATIVE,
+                    )
+                )
             else:
                 lines.append(("Not yet reachable", C.COLOR_TEXT_DISABLED))
 
-        pad    = 8
+        pad = 8
         line_h = C.LINE_HEIGHT_SMALL
-        box_w  = max(280, max(self.font_small.size(text)[0] for text, _ in lines) + pad * 2)
+        box_w = max(280, max(self.font_small.size(text)[0] for text, _ in lines) + pad * 2)
         # Determine if we should show a Fight Boss button
         show_fight_btn = tile.get("has_boss") and tile.get("explored") and terrain != "colony"
         btn_h = C.BUILD_BTN_HEIGHT + pad if show_fight_btn else 0
-        box_h  = pad * 2 + len(lines) * line_h + btn_h
+        box_h = pad * 2 + len(lines) * line_h + btn_h
 
         tx = hex_pos[0] + C.HEX_SIZE + 8
         ty = hex_pos[1] - box_h // 2
@@ -1026,7 +1045,7 @@ class Renderer:
             self._blit(text, self.font_small, color, tx + pad, ty + pad + i * line_h)
 
         if show_fight_btn:
-            can_fight = (state.has_barracks and state.soldiers >= C.BOSS_MIN_SOLDIERS)
+            can_fight = state.has_barracks and state.soldiers >= C.BOSS_MIN_SOLDIERS
             if can_fight:
                 fight_label = f"Fight Boss  ({state.soldiers} soldiers)"
             elif not state.has_barracks:
@@ -1049,7 +1068,7 @@ class Renderer:
     # ------------------------------------------------------------------
 
     def _draw_bottom_bar(self, state: GameState) -> None:
-        bar_y    = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
+        bar_y = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
         bar_rect = pygame.Rect(0, bar_y, C.WINDOW_WIDTH, C.BOTTOM_BAR_HEIGHT)
         pygame.draw.rect(self.screen, C.COLOR_BOTTOM_BAR, bar_rect)
         pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (0, bar_y), (C.WINDOW_WIDTH, bar_y))
@@ -1070,13 +1089,23 @@ class Renderer:
             sx += C.BOTTOM_BAR_SPEED_ITEM_W
 
         # Colonist count
-        self._blit(f"Colonists: {state.colonist_count}", self.font_med, C.COLOR_TEXT_PRIMARY,
-                   sx + C.BOTTOM_BAR_COLONIST_GAP, cy)
+        self._blit(
+            f"Colonists: {state.colonist_count}",
+            self.font_med,
+            C.COLOR_TEXT_PRIMARY,
+            sx + C.BOTTOM_BAR_COLONIST_GAP,
+            cy,
+        )
 
         # Starvation count
         starve_color = C.COLOR_NEGATIVE if state.starvation_events > 0 else C.COLOR_TEXT_SECONDARY
-        self._blit(f"Starvations: {state.starvation_events}", self.font_med, starve_color,
-                   sx + C.BOTTOM_BAR_COLONIST_GAP + C.BOTTOM_BAR_STARVE_GAP, cy)
+        self._blit(
+            f"Starvations: {state.starvation_events}",
+            self.font_med,
+            starve_color,
+            sx + C.BOTTOM_BAR_COLONIST_GAP + C.BOTTOM_BAR_STARVE_GAP,
+            cy,
+        )
 
         # World Map toggle button (only when cartography is researched)
         if state.hex_map_unlocked:
@@ -1094,7 +1123,7 @@ class Renderer:
 
         # Status / keybind hint (right-aligned)
         if state.status == GameStatus.PLAYING:
-            status_text  = "PAUSED  [SPACE = resume]" if state.paused else "SPACE = pause  |  TAB = speed  |  ESC = menu"
+            status_text = "PAUSED  [SPACE = resume]" if state.paused else "SPACE = pause  |  TAB = speed  |  ESC = menu"
             status_color = C.COLOR_SPEED_HIGHLIGHT if state.paused else C.COLOR_TEXT_SECONDARY
         elif state.status == GameStatus.WIN:
             status_text, status_color = "YOU WIN!", C.COLOR_WIN
@@ -1113,15 +1142,16 @@ class Renderer:
         overlay.fill((0, 0, 0, 100))
         self.screen.blit(overlay, (0, 0))
 
-        big_font   = pygame.font.SysFont("Consolas", 72, bold=True)
+        big_font = pygame.font.SysFont("Consolas", 72, bold=True)
         title_surf = big_font.render("PAUSED", True, C.COLOR_TEXT_PRIMARY)
-        hint_surf  = self.font_small.render(
+        hint_surf = self.font_small.render(
             "SPACE to resume  |  TAB to change speed  |  ESC for menu",
-            True, C.COLOR_TEXT_DISABLED,
+            True,
+            C.COLOR_TEXT_DISABLED,
         )
         cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
         self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 24)))
-        self.screen.blit(hint_surf,  hint_surf.get_rect(center=(cx, cy + 44)))
+        self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, cy + 44)))
 
     # ------------------------------------------------------------------
     # Escape menu overlay
@@ -1137,8 +1167,8 @@ class Renderer:
         btn_w, btn_h = 300, 52
         gap = 16
         num_btns = 3 if show_save else 2
-        box_w  = btn_w + 80
-        box_h  = 60 + num_btns * btn_h + (num_btns - 1) * gap + 50
+        box_w = btn_w + 80
+        box_h = 60 + num_btns * btn_h + (num_btns - 1) * gap + 50
         box_top = cy - box_h // 2
         box_rect = pygame.Rect(cx - box_w // 2, box_top, box_w, box_h)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, box_rect, border_radius=8)
@@ -1147,7 +1177,7 @@ class Renderer:
         title_surf = self.font_large.render("MENU", True, C.COLOR_TEXT_PRIMARY)
         self.screen.blit(title_surf, title_surf.get_rect(center=(cx, box_top + 28)))
 
-        btn_x   = cx - btn_w // 2
+        btn_x = cx - btn_w // 2
         first_y = box_top + 60
 
         btn_continue = Button(
@@ -1201,7 +1231,7 @@ class Renderer:
 
         # Title
         title_font = pygame.font.SysFont("Consolas", 64, bold=True)
-        sub_font   = pygame.font.SysFont("Consolas", 28)
+        sub_font = pygame.font.SysFont("Consolas", 28)
         t_surf = title_font.render("KINGDOMS OF THE FORGOTTEN", True, C.COLOR_TEXT_PRIMARY)
         s_surf = sub_font.render("Medieval Fantasy Colony Builder", True, C.COLOR_TEXT_SECONDARY)
         self.screen.blit(t_surf, t_surf.get_rect(center=(cx, cy - 200)))
@@ -1270,18 +1300,18 @@ class Renderer:
         self.screen.blit(title_surf, title_surf.get_rect(center=(cx, 60)))
 
         # Column layout
-        row_h      = 64
-        row_w      = 1200
-        row_x      = cx - row_w // 2
-        list_top   = 120
-        max_rows   = min(len(saves), 12)
+        row_h = 64
+        row_w = 1200
+        row_x = cx - row_w // 2
+        list_top = 120
+        max_rows = min(len(saves), 12)
 
         for i in range(max_rows):
-            s    = saves[i]
+            s = saves[i]
             rect = pygame.Rect(row_x, list_top + i * (row_h + 6), row_w, row_h)
-            btn  = Button(
+            btn = Button(
                 rect=rect,
-                label="",          # drawn manually below
+                label="",  # drawn manually below
                 action=s["path"],
                 font=self.font_small,
             )
@@ -1293,25 +1323,25 @@ class Renderer:
             pygame.draw.rect(self.screen, C.COLOR_BTN_BORDER, rect, width=1, border_radius=4)
 
             # Columns: name + date | tick | gold | colonists
-            pad  = 16
+            pad = 16
             cy_r = rect.centery
-            name_col  = row_x + pad
-            date_col  = row_x + 220
-            tick_col  = row_x + 560
-            gold_col  = row_x + 760
-            pop_col   = row_x + 980
+            name_col = row_x + pad
+            date_col = row_x + 220
+            tick_col = row_x + 560
+            gold_col = row_x + 760
+            pop_col = row_x + 980
 
             name_surf = self.font_med.render(s["name"], True, C.COLOR_TEXT_PRIMARY)
             date_surf = self.font_small.render(s["datetime_str"], True, C.COLOR_TEXT_SECONDARY)
             tick_surf = self.font_small.render(f"Tick {s['tick']}", True, C.COLOR_TEXT_SECONDARY)
             gold_surf = self.font_small.render(f"{s['gold']:.0f} Gold", True, C.COLOR_GOLD)
-            pop_surf  = self.font_small.render(f"{s['colonists']} Colonists", True, C.COLOR_TEXT_SECONDARY)
+            pop_surf = self.font_small.render(f"{s['colonists']} Colonists", True, C.COLOR_TEXT_SECONDARY)
 
             self.screen.blit(name_surf, name_surf.get_rect(midleft=(name_col, cy_r)))
             self.screen.blit(date_surf, date_surf.get_rect(midleft=(date_col, cy_r)))
             self.screen.blit(tick_surf, tick_surf.get_rect(midleft=(tick_col, cy_r)))
             self.screen.blit(gold_surf, gold_surf.get_rect(midleft=(gold_col, cy_r)))
-            self.screen.blit(pop_surf,  pop_surf.get_rect(midleft=(pop_col,  cy_r)))
+            self.screen.blit(pop_surf, pop_surf.get_rect(midleft=(pop_col, cy_r)))
 
         # Back button
         btn_back = Button(
@@ -1336,26 +1366,26 @@ class Renderer:
         self.screen.blit(overlay, (0, 0))
 
         if state.status == GameStatus.WIN:
-            title    = "VICTORY!"
+            title = "VICTORY!"
             subtitle = f"You accumulated {state.gold:.0f} Gold in {state.tick} ticks!"
-            color    = C.COLOR_WIN
+            color = C.COLOR_WIN
         else:
-            title    = "DEFEAT"
+            title = "DEFEAT"
             subtitle = f"All colonists perished on tick {state.tick}."
-            color    = C.COLOR_LOSE
+            color = C.COLOR_LOSE
 
         lp_earned = compute_lp_earned(state)
 
-        big_font   = pygame.font.SysFont("Consolas", 72, bold=True)
-        sub_font   = pygame.font.SysFont("Consolas", 28)
+        big_font = pygame.font.SysFont("Consolas", 72, bold=True)
+        sub_font = pygame.font.SysFont("Consolas", 28)
         title_surf = big_font.render(title, True, color)
-        sub_surf   = sub_font.render(subtitle, True, C.COLOR_TEXT_PRIMARY)
-        lp_surf    = sub_font.render(f"Legacy Points earned: +{lp_earned}", True, C.COLOR_LP)
+        sub_surf = sub_font.render(subtitle, True, C.COLOR_TEXT_PRIMARY)
+        lp_surf = sub_font.render(f"Legacy Points earned: +{lp_earned}", True, C.COLOR_LP)
 
         cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
         self.screen.blit(title_surf, title_surf.get_rect(center=(cx, cy - 80)))
-        self.screen.blit(sub_surf,   sub_surf.get_rect(center=(cx, cy - 10)))
-        self.screen.blit(lp_surf,    lp_surf.get_rect(center=(cx, cy + 46)))
+        self.screen.blit(sub_surf, sub_surf.get_rect(center=(cx, cy - 10)))
+        self.screen.blit(lp_surf, lp_surf.get_rect(center=(cx, cy + 46)))
 
         # "Start Next Run" button
         btn_w, btn_h = 300, 54
@@ -1448,12 +1478,21 @@ class Renderer:
         btn_x = cx - btn_w // 2
         first_y = box_top + 60
         buttons = [
-            Button(rect=pygame.Rect(btn_x, first_y, btn_w, btn_h),
-                   label="Continue", action="continue", font=self.font_med),
-            Button(rect=pygame.Rect(btn_x, first_y + btn_h + gap, btn_w, btn_h),
-                   label="Save & Exit", action="save_and_exit", font=self.font_med),
-            Button(rect=pygame.Rect(btn_x, first_y + 2 * (btn_h + gap), btn_w, btn_h),
-                   label="Exit without saving", action="exit_no_save", font=self.font_med),
+            Button(
+                rect=pygame.Rect(btn_x, first_y, btn_w, btn_h), label="Continue", action="continue", font=self.font_med
+            ),
+            Button(
+                rect=pygame.Rect(btn_x, first_y + btn_h + gap, btn_w, btn_h),
+                label="Save & Exit",
+                action="save_and_exit",
+                font=self.font_med,
+            ),
+            Button(
+                rect=pygame.Rect(btn_x, first_y + 2 * (btn_h + gap), btn_w, btn_h),
+                label="Exit without saving",
+                action="exit_no_save",
+                font=self.font_med,
+            ),
         ]
         for btn in buttons:
             btn.draw(self.screen)
@@ -1490,10 +1529,10 @@ class Renderer:
             outcome_text, outcome_color = "DEFEAT", C.COLOR_LOSE
 
         rows = [
-            ("Outcome",        outcome_text,                                outcome_color),
-            ("Ticks survived", str(state.tick),                             C.COLOR_TEXT_PRIMARY),
-            ("Gold produced",  f"{state.total_gold_earned:.0f}",            C.COLOR_GOLD),
-            ("Starvations",    str(state.starvation_events),                C.COLOR_TEXT_PRIMARY),
+            ("Outcome", outcome_text, outcome_color),
+            ("Ticks survived", str(state.tick), C.COLOR_TEXT_PRIMARY),
+            ("Gold produced", f"{state.total_gold_earned:.0f}", C.COLOR_GOLD),
+            ("Starvations", str(state.starvation_events), C.COLOR_TEXT_PRIMARY),
         ]
         for label, value, color in rows:
             self._blit(f"{label}:", self.font_small, C.COLOR_TEXT_SECONDARY, lx, ly)
@@ -1504,22 +1543,25 @@ class Renderer:
         pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (lx, ly), (lx + 560, ly))
         ly += C.DIVIDER_PADDING
 
-        self._blit(f"LP earned this run:", self.font_med, C.COLOR_TEXT_SECONDARY, lx, ly)
+        self._blit("LP earned this run:", self.font_med, C.COLOR_TEXT_SECONDARY, lx, ly)
         self._blit(f"+{lp_earned}", self.font_med, C.COLOR_LP, lx + 300, ly)
         ly += C.LINE_HEIGHT_MED + 6
-        self._blit(f"Total LP:", self.font_med, C.COLOR_TEXT_SECONDARY, lx, ly)
+        self._blit("Total LP:", self.font_med, C.COLOR_TEXT_SECONDARY, lx, ly)
         self._blit(str(meta.legacy_points), self.font_med, C.COLOR_LP, lx + 300, ly)
         ly += C.LINE_HEIGHT_MED + 6
 
         if "veteran_memory" in meta.unlocked_upgrades and meta.carried_tech_id:
             from game.core import config as _cfg
+
             tech_def = next((t for t in _cfg.RESEARCH_TECHS if t["tech_id"] == meta.carried_tech_id), None)
             tech_name = tech_def["name"] if tech_def else meta.carried_tech_id
             self._blit(f"Carrying tech: {tech_name}", self.font_small, C.COLOR_TEXT_SECONDARY, lx, ly)
             ly += C.LINE_HEIGHT_SMALL
 
         ly += C.SECTION_GAP
-        self._blit(f"Total runs: {meta.total_runs}  Wins: {meta.total_wins}", self.font_small, C.COLOR_TEXT_DISABLED, lx, ly)
+        self._blit(
+            f"Total runs: {meta.total_runs}  Wins: {meta.total_wins}", self.font_small, C.COLOR_TEXT_DISABLED, lx, ly
+        )
 
         # ---------------------------------------------------------------
         # Right: Upgrade shop (all upgrades, including automation)
@@ -1533,18 +1575,18 @@ class Renderer:
         ry += C.DIVIDER_PADDING
 
         for upgrade in C.UPGRADES:
-            uid      = upgrade["id"]
-            name     = upgrade["name"]
-            desc     = upgrade["description"]
-            cost     = upgrade["lp_cost"]
+            uid = upgrade["id"]
+            name = upgrade["name"]
+            desc = upgrade["description"]
+            cost = upgrade["lp_cost"]
             requires = upgrade["requires"]
 
-            is_unlocked   = uid in meta.unlocked_upgrades
-            req_met       = requires is None or requires in meta.unlocked_upgrades
-            can_afford    = meta.legacy_points >= cost
-            req_name      = None
+            is_unlocked = uid in meta.unlocked_upgrades
+            req_met = requires is None or requires in meta.unlocked_upgrades
+            can_afford = meta.legacy_points >= cost
+            req_name = None
             if requires:
-                req_def  = next((u for u in C.UPGRADES if u["id"] == requires), None)
+                req_def = next((u for u in C.UPGRADES if u["id"] == requires), None)
                 req_name = req_def["name"] if req_def else requires
 
             if is_unlocked:
@@ -1553,7 +1595,9 @@ class Renderer:
                 ry += C.LINE_HEIGHT_SMALL * 2 + 10
             elif not req_met:
                 self._blit(f"[?] {name}  ({cost} LP)", self.font_small, C.COLOR_TEXT_DISABLED, rx, ry)
-                self._blit(f"    Requires: {req_name}", self.font_small, C.COLOR_TEXT_DISABLED, rx, ry + C.LINE_HEIGHT_SMALL)
+                self._blit(
+                    f"    Requires: {req_name}", self.font_small, C.COLOR_TEXT_DISABLED, rx, ry + C.LINE_HEIGHT_SMALL
+                )
                 ry += C.LINE_HEIGHT_SMALL * 2 + 10
             else:
                 btn_rect = pygame.Rect(rx, ry, 1160, C.BUILD_BTN_HEIGHT)
@@ -1602,7 +1646,9 @@ class Renderer:
     def _blit(self, text: str, font: pygame.font.Font, color: tuple, x: int, y: int) -> None:
         self.screen.blit(font.render(text, True, color), (x, y))
 
-    def _blit_wrapped(self, text: str, font: pygame.font.Font, color: tuple, x: int, y: int, max_width: int, line_height: int) -> int:
+    def _blit_wrapped(
+        self, text: str, font: pygame.font.Font, color: tuple, x: int, y: int, max_width: int, line_height: int
+    ) -> int:
         """Render text wrapping within max_width. Returns the new y after all lines."""
         words = text.split(" ")
         line = ""
@@ -1626,24 +1672,24 @@ class Renderer:
     @staticmethod
     def _max_workers(btype: BuildingType) -> int:
         return {
-            BuildingType.FARM:        C.FARM_MAX_WORKERS,
+            BuildingType.FARM: C.FARM_MAX_WORKERS,
             BuildingType.LUMBER_MILL: C.LUMBERMILL_MAX_WORKERS,
-            BuildingType.MARKET:      C.MARKET_MAX_WORKERS,
-            BuildingType.QUARRY:      C.QUARRY_MAX_WORKERS,
-            BuildingType.SAWMILL:     C.SAWMILL_MAX_WORKERS,
-            BuildingType.IRON_MINE:   C.IRON_MINE_MAX_WORKERS,
-            BuildingType.BARRACKS:    0,
+            BuildingType.MARKET: C.MARKET_MAX_WORKERS,
+            BuildingType.QUARRY: C.QUARRY_MAX_WORKERS,
+            BuildingType.SAWMILL: C.SAWMILL_MAX_WORKERS,
+            BuildingType.IRON_MINE: C.IRON_MINE_MAX_WORKERS,
+            BuildingType.BARRACKS: 0,
         }.get(btype, 0)
 
     @staticmethod
     def _build_cost(btype: BuildingType) -> float:
         """Returns wood-only cost for simple buildings; 0 for multi-resource buildings."""
         return {
-            BuildingType.FARM:        C.FARM_BUILD_COST_WOOD,
+            BuildingType.FARM: C.FARM_BUILD_COST_WOOD,
             BuildingType.LUMBER_MILL: C.LUMBERMILL_BUILD_COST_WOOD,
-            BuildingType.MARKET:      C.MARKET_BUILD_COST_WOOD,
-            BuildingType.QUARRY:      C.QUARRY_BUILD_COST_WOOD,
-            BuildingType.SAWMILL:     C.SAWMILL_BUILD_COST_WOOD,
+            BuildingType.MARKET: C.MARKET_BUILD_COST_WOOD,
+            BuildingType.QUARRY: C.QUARRY_BUILD_COST_WOOD,
+            BuildingType.SAWMILL: C.SAWMILL_BUILD_COST_WOOD,
         }.get(btype, 0.0)
 
     @staticmethod
@@ -1670,15 +1716,15 @@ class Renderer:
             if workers == 0:
                 return "(no workers)"
             planks = workers * C.SAWMILL_PLANKS_PER_WORKER_PER_TICK
-            wood   = workers * C.SAWMILL_WOOD_PER_WORKER_PER_TICK
+            wood = workers * C.SAWMILL_WOOD_PER_WORKER_PER_TICK
             return f"+{planks:.2f} Planks/tick  (-{wood:.2f} Wood/tick)"
         elif btype == BuildingType.MARKET:
             if workers == 0:
                 return "(no workers)"
-            gold_w  = workers * C.MARKET_GOLD_PER_WORKER_PER_TICK
-            gold_p  = workers * C.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK
-            wood    = workers * C.MARKET_WOOD_PER_WORKER_PER_TICK
-            planks  = workers * C.MARKET_PLANKS_PER_WORKER_PER_TICK
+            gold_w = workers * C.MARKET_GOLD_PER_WORKER_PER_TICK
+            gold_p = workers * C.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK
+            wood = workers * C.MARKET_WOOD_PER_WORKER_PER_TICK
+            planks = workers * C.MARKET_PLANKS_PER_WORKER_PER_TICK
             return f"+{gold_w:.2f} Gold (-{wood:.2f} Wood) | +{gold_p:.2f} Gold (-{planks:.2f} Planks)"
         elif btype == BuildingType.IRON_MINE:
             if workers == 0:
@@ -1690,10 +1736,10 @@ class Renderer:
         return ""
 
     def _draw_research_row(self, state: GameState, tech: dict, x: int, y: int) -> int:
-        tech_id    = tech["tech_id"]
-        name       = tech["name"]
-        desc       = tech["description"]
-        cost       = tech["gold_cost"]
+        tech_id = tech["tech_id"]
+        name = tech["name"]
+        desc = tech["description"]
+        cost = tech["gold_cost"]
         researched = tech_id in state.researched_tech_ids
         can_afford = state.gold >= cost
 
@@ -1702,7 +1748,7 @@ class Renderer:
             self._blit(desc, self.font_small, C.COLOR_TEXT_DISABLED, x + 20, y + C.LINE_HEIGHT_SMALL)
             return y + C.LINE_HEIGHT_SMALL * 2
         else:
-            label    = f"Research {name}  ({cost}g)"
+            label = f"Research {name}  ({cost}g)"
             btn_rect = pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT)
             btn = Button(
                 rect=btn_rect,

@@ -20,7 +20,6 @@ Public API:
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -42,6 +41,7 @@ def _ensure_dir() -> None:
 # ---------------------------------------------------------------------------
 # Saving
 # ---------------------------------------------------------------------------
+
 
 def autosave_game(state: GameState) -> None:
     """Overwrite the rolling autosave (saves/autosave.json)."""
@@ -71,6 +71,7 @@ def save_game(state: GameState, path: Optional[Path] = None) -> Path:
 # Loading
 # ---------------------------------------------------------------------------
 
+
 def load_game(path: Path = AUTOSAVE_PATH) -> GameState:
     """Deserialise a GameState from *path*."""
     return GameState.from_json(path.read_text(encoding="utf-8"))
@@ -79,6 +80,7 @@ def load_game(path: Path = AUTOSAVE_PATH) -> GameState:
 # ---------------------------------------------------------------------------
 # Listing / querying
 # ---------------------------------------------------------------------------
+
 
 def has_save() -> bool:
     """Return True if at least one save file exists."""
