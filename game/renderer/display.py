@@ -191,6 +191,10 @@ class Renderer:
         self._hex_scroll_offset: List[int] = [0, 0]
         self._hex_drag_start: Optional[List[int]] = None
 
+        # Hex tile sprites — loaded once at startup; fall back to color fill if missing
+        self._hex_sprites: dict[str, pygame.Surface] = {}
+        self._load_hex_sprites()
+
     # ------------------------------------------------------------------
     # Public: reset between runs
     # ------------------------------------------------------------------
@@ -791,6 +795,17 @@ class Renderer:
     # World map view
     # ------------------------------------------------------------------
 
+    def _load_hex_sprites(self) -> None:
+        """Load pre-generated hex tile PNGs from assets/tiles/. Silently skips missing files."""
+        assets_dir = Path(__file__).parent.parent.parent / "assets" / "tiles"
+        for terrain in ("plains", "forest", "hills", "mountains", "swamp", "ruins", "colony"):
+            path = assets_dir / f"{terrain}.png"
+            if path.exists():
+                try:
+                    self._hex_sprites[terrain] = pygame.image.load(str(path)).convert_alpha()
+                except Exception:
+                    pass  # fall back to color fill
+
     def _draw_world_map(self, state: GameState) -> None:
         _RESOURCE_BAR_H = 40
         map_area_top    = _RESOURCE_BAR_H
@@ -857,7 +872,20 @@ class Renderer:
             if hovered_hex == (q, r) and (explored or is_explorable):
                 color = tuple(min(255, c + 40) for c in color)
 
-            pygame.draw.polygon(self.screen, color, vertices)
+            sprite = self._hex_sprites.get(terrain) if explored else None
+            if sprite:
+                blit_x = px - sprite.get_width() // 2
+                blit_y = py - sprite.get_height() // 2
+                if hovered_hex == (q, r):
+                    tinted = sprite.copy()
+                    overlay = pygame.Surface(sprite.get_size(), pygame.SRCALPHA)
+                    overlay.fill((255, 255, 255, 50))
+                    tinted.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+                    self.screen.blit(tinted, (blit_x, blit_y))
+                else:
+                    self.screen.blit(sprite, (blit_x, blit_y))
+            else:
+                pygame.draw.polygon(self.screen, color, vertices)
 
             has_boss = tile.get("has_boss", False)
             if explored and has_boss:
@@ -879,6 +907,9 @@ class Renderer:
 
         self.screen.set_clip(None)
 
+        # Fixed Fight Boss buttons (top-left) for all revealed boss hexes
+        self._draw_boss_buttons(state, map_area_top)
+
         # Tooltip — anchored to hex position so the Fight Boss button stays clickable
         if hovered_hex:
             tile = state.hex_tiles.get(f"{hovered_hex[0]},{hovered_hex[1]}")
@@ -891,6 +922,47 @@ class Renderer:
             "Left-click to explore  |  Right-drag to pan", True, C.COLOR_TEXT_DISABLED
         )
         self.screen.blit(hint_surf, (C.PANEL_PADDING, map_area_bottom - C.LINE_HEIGHT_SMALL - 4))
+
+    def _draw_boss_buttons(self, state: GameState, map_area_top: int) -> None:
+        """Draw a fixed Fight Boss button for each revealed boss hex, stacked in the top-left."""
+        boss_hexes = [
+            (q, r)
+            for key, tile in state.hex_tiles.items()
+            if tile.get("has_boss") and tile.get("explored") and tile.get("terrain") != "colony"
+            for q, r in [map(int, key.split(","))]
+        ]
+        if not boss_hexes:
+            return
+
+        pad = 8
+        btn_w = 260
+        btn_h = C.BUILD_BTN_HEIGHT
+        panel_pad = 6
+        panel_x = C.PANEL_PADDING
+        panel_y = map_area_top + C.PANEL_PADDING
+
+        can_fight = state.has_barracks and state.soldiers >= C.BOSS_MIN_SOLDIERS
+        win_pct = int(100 * state.soldiers / (state.soldiers + C.BOSS_STRENGTH))
+
+        for idx, (q, r) in enumerate(boss_hexes):
+            by = panel_y + idx * (btn_h + panel_pad)
+
+            if can_fight:
+                label = f"Fight Boss  ({state.soldiers} sol, {win_pct}% win)"
+            elif not state.has_barracks:
+                label = "Fight Boss  (need Barracks)"
+            else:
+                label = f"Fight Boss  (need {C.BOSS_MIN_SOLDIERS} soldiers, have {state.soldiers})"
+
+            btn = Button(
+                rect=pygame.Rect(panel_x, by, btn_w, btn_h),
+                label=label,
+                action=ActionFightBoss(q=q, r=r),
+                enabled=can_fight,
+                font=self.font_small,
+            )
+            btn.draw(self.screen)
+            self._buttons.append(btn)
 
     def _draw_hex_tooltip(self, state: GameState, tile: dict, q: int, r: int, hex_pos: tuple) -> None:
         terrain  = tile.get("terrain", "unknown")
