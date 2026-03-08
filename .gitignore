@@ -16,6 +16,9 @@ __pycache__/
 saves/
 meta_save.json
 
+# Raw (unmasked) Imagen outputs
+assets/tiles/raw/
+
 # OS
 .DS_Store
 Thumbs.db
