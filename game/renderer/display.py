@@ -895,15 +895,6 @@ class Renderer:
                 border_color = C.HEX_FOG_BORDER_COLOR if is_explorable else C.COLOR_PANEL_BORDER
                 pygame.draw.polygon(self.screen, border_color, vertices, 1)
 
-            # Label
-            if explored:
-                if terrain == "colony":
-                    lbl_surf = self.font_small.render("HOME", True, C.COLOR_GOLD)
-                elif has_boss:
-                    lbl_surf = self.font_small.render("BOSS", True, C.HEX_BOSS_BORDER_COLOR)
-                else:
-                    lbl_surf = self.font_small.render(terrain[:4].upper(), True, C.COLOR_TEXT_SECONDARY)
-                self.screen.blit(lbl_surf, lbl_surf.get_rect(center=(px, py)))
 
         self.screen.set_clip(None)
 
@@ -935,7 +926,6 @@ class Renderer:
             return
 
         pad = 8
-        btn_w = 260
         btn_h = C.BUILD_BTN_HEIGHT
         panel_pad = 6
         panel_x = C.PANEL_PADDING
@@ -954,6 +944,7 @@ class Renderer:
             else:
                 label = f"Fight Boss  (need {C.BOSS_MIN_SOLDIERS} soldiers, have {state.soldiers})"
 
+            btn_w = self.font_small.size(label)[0] + 2 * pad
             btn = Button(
                 rect=pygame.Rect(panel_x, by, btn_w, btn_h),
                 label=label,
@@ -1010,7 +1001,7 @@ class Renderer:
 
         pad    = 8
         line_h = C.LINE_HEIGHT_SMALL
-        box_w  = 280
+        box_w  = max(280, max(self.font_small.size(text)[0] for text, _ in lines) + pad * 2)
         # Determine if we should show a Fight Boss button
         show_fight_btn = tile.get("has_boss") and tile.get("explored") and terrain != "colony"
         btn_h = C.BUILD_BTN_HEIGHT + pad if show_fight_btn else 0
