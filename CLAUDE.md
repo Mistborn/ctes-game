@@ -14,6 +14,26 @@ powershell.exe -Command "Start-Process -FilePath 'C:\Users\me\.local\bin\uv.exe'
 uv run python main.py --headless
 ```
 
+## Load pre-boss save on world map
+
+```bash
+uv run python main.py --load saves/scenario_pre_boss.json --view world_map
+```
+
+## Taking a screenshot
+
+```bash
+powershell.exe -ExecutionPolicy Bypass -File "C:/Users/me/Programming/ctes-game/dev_scripts/screenshot.ps1"
+```
+
+Then read `screenshot.png` in the repo root to view it.
+
+## Killing the game
+
+```bash
+powershell.exe -Command "Stop-Process -Name python -Force"
+```
+
 ## Environment notes
 
 - Git identity: name="Vlad Dolezal", email="4179152+Mistborn@users.noreply.github.com"
