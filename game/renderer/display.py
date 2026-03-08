@@ -879,11 +879,12 @@ class Renderer:
 
         self.screen.set_clip(None)
 
-        # Tooltip
+        # Tooltip — anchored to hex position so the Fight Boss button stays clickable
         if hovered_hex:
             tile = state.hex_tiles.get(f"{hovered_hex[0]},{hovered_hex[1]}")
             if tile:
-                self._draw_hex_tooltip(state, tile, hovered_hex[0], hovered_hex[1], mouse_pos)
+                hex_px, hex_py = _axial_to_pixel(hovered_hex[0], hovered_hex[1], cx, cy, hex_size)
+                self._draw_hex_tooltip(state, tile, hovered_hex[0], hovered_hex[1], (hex_px, hex_py))
 
         # Hint
         hint_surf = self.font_small.render(
@@ -891,7 +892,7 @@ class Renderer:
         )
         self.screen.blit(hint_surf, (C.PANEL_PADDING, map_area_bottom - C.LINE_HEIGHT_SMALL - 4))
 
-    def _draw_hex_tooltip(self, state: GameState, tile: dict, q: int, r: int, mouse_pos: tuple) -> None:
+    def _draw_hex_tooltip(self, state: GameState, tile: dict, q: int, r: int, hex_pos: tuple) -> None:
         terrain  = tile.get("terrain", "unknown")
         explored = tile.get("explored", False)
         ring = max(abs(q), abs(r), abs(q + r))
@@ -943,8 +944,8 @@ class Renderer:
         btn_h = C.BUILD_BTN_HEIGHT + pad if show_fight_btn else 0
         box_h  = pad * 2 + len(lines) * line_h + btn_h
 
-        tx = mouse_pos[0] + 16
-        ty = mouse_pos[1] - box_h // 2
+        tx = hex_pos[0] + C.HEX_SIZE + 8
+        ty = hex_pos[1] - box_h // 2
         tx = min(tx, C.WINDOW_WIDTH - box_w - 4)
         ty = max(ty, 40)
         ty = min(ty, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT - box_h - 4)
