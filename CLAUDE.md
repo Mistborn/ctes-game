@@ -16,5 +16,4 @@ uv run python main.py --headless
 
 ## Environment notes
 
-- GitHub CLI (`gh`) is at `C:\Program Files\GitHub CLI\gh.exe`
 - Git identity: name="Vlad Dolezal", email="4179152+Mistborn@users.noreply.github.com"

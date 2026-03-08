@@ -23,6 +23,8 @@ class BuildingType(str, Enum):
     MARKET = "Market"
     QUARRY = "Quarry"
     SAWMILL = "Sawmill"
+    IRON_MINE = "Iron Mine"
+    BARRACKS = "Barracks"
 
 
 class GameStatus(str, Enum):
@@ -159,5 +161,18 @@ class ActionRecruitCitizen:
 @dataclass
 class ActionExploreHex:
     """Player action: explore a hex tile on the world map."""
+    q: int
+    r: int
+
+
+@dataclass
+class ActionTrainSoldier:
+    """Player action: train one soldier at the barracks."""
+    pass
+
+
+@dataclass
+class ActionFightBoss:
+    """Player action: send soldiers to fight the boss on a hex tile."""
     q: int
     r: int

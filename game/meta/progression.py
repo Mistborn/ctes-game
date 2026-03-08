@@ -35,6 +35,8 @@ class MetaState:
     carried_tech_id: Optional[str] = None
     total_runs: int = 0
     total_wins: int = 0
+    # Ring numbers whose boss has already granted a first-kill LP bonus (global, persists across runs)
+    boss_lp_awarded_rings: List[int] = field(default_factory=list)
 
     # -----------------------------------------------------------------------
     # Persistence
@@ -48,6 +50,7 @@ class MetaState:
             "carried_tech_id": self.carried_tech_id,
             "total_runs": self.total_runs,
             "total_wins": self.total_wins,
+            "boss_lp_awarded_rings": list(self.boss_lp_awarded_rings),
         }
         META_SAVE_PATH.write_text(json.dumps(data, indent=2))
 
@@ -64,6 +67,7 @@ class MetaState:
                 carried_tech_id=data.get("carried_tech_id"),
                 total_runs=data.get("total_runs", 0),
                 total_wins=data.get("total_wins", 0),
+                boss_lp_awarded_rings=list(data.get("boss_lp_awarded_rings", [])),
             )
         except Exception:
             return cls()
@@ -100,6 +104,7 @@ class MetaState:
         self.carried_tech_id = None
         self.total_runs = 0
         self.total_wins = 0
+        self.boss_lp_awarded_rings = []
 
     def end_run(self, state: "GameState") -> int:
         """
@@ -109,6 +114,13 @@ class MetaState:
         from game.core.entities import GameStatus
 
         lp = compute_lp_earned(state)
+
+        # First-kill bonus: +1 LP per boss tier cleared for the first time ever
+        for ring in state.boss_rings_cleared:
+            if ring not in self.boss_lp_awarded_rings:
+                lp += config.BOSS_LP_REWARD
+                self.boss_lp_awarded_rings.append(ring)
+
         self.legacy_points += lp
         self.total_runs += 1
         if state.status == GameStatus.WIN:

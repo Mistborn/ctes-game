@@ -19,9 +19,11 @@ from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
     ActionExploreHex,
+    ActionFightBoss,
     ActionRecruitCitizen,
     ActionResearchTech,
     ActionSetSpeed,
+    ActionTrainSoldier,
     Building,
     BuildingType,
     Colonist,
@@ -131,11 +133,12 @@ def tick(state: GameState) -> GameState:
             _add_season_log(state, curr_season)
 
     # Snapshot resources before tick for rate calculation
-    food_before  = state.food
-    wood_before  = state.wood
-    gold_before  = state.gold
-    stone_before = state.stone
+    food_before   = state.food
+    wood_before   = state.wood
+    gold_before   = state.gold
+    stone_before  = state.stone
     planks_before = state.planks
+    iron_before   = state.iron
 
     # 1. Buildings produce resources
     _process_production(state)
@@ -149,12 +152,14 @@ def tick(state: GameState) -> GameState:
     state.gold   = min(state.gold,   config.GOLD_CAP)
     state.stone  = min(state.stone,  config.STONE_CAP)
     state.planks = min(state.planks, config.PLANKS_CAP)
+    state.iron   = min(state.iron,   config.IRON_CAP)
     # Resources cannot go below zero
     state.food   = max(state.food,   0.0)
     state.wood   = max(state.wood,   0.0)
     state.gold   = max(state.gold,   0.0)
     state.stone  = max(state.stone,  0.0)
     state.planks = max(state.planks, 0.0)
+    state.iron   = max(state.iron,   0.0)
 
     # 4. Update per-tick rate display values
     state.food_rate   = state.food   - food_before
@@ -162,6 +167,7 @@ def tick(state: GameState) -> GameState:
     state.gold_rate   = state.gold   - gold_before
     state.stone_rate  = state.stone  - stone_before
     state.planks_rate = state.planks - planks_before
+    state.iron_rate   = state.iron   - iron_before
 
     # 5. Track total gold produced (for LP)
     if state.gold_rate > 0:
@@ -183,10 +189,7 @@ def tick(state: GameState) -> GameState:
 # Action dispatcher
 # ---------------------------------------------------------------------------
 
-def apply_action(
-    state: GameState,
-    action: Union[ActionAssignWorker, ActionBuildBuilding, ActionSetSpeed, ActionResearchTech, ActionRecruitCitizen, ActionExploreHex],
-) -> GameState:
+def apply_action(state: GameState, action) -> GameState:
     """Apply a player action to the state. Returns the mutated state."""
     if state.status != GameStatus.PLAYING:
         return state
@@ -203,6 +206,10 @@ def apply_action(
         _handle_recruit_citizen(state)
     elif isinstance(action, ActionExploreHex):
         _handle_explore_hex(state, action)
+    elif isinstance(action, ActionTrainSoldier):
+        _handle_train_soldier(state)
+    elif isinstance(action, ActionFightBoss):
+        _handle_fight_boss(state, action)
 
     return state
 
@@ -266,6 +273,9 @@ def _process_production(state: GameState) -> None:
                     fraction = state.wood / wood_needed
                     state.planks += workers * config.SAWMILL_PLANKS_PER_WORKER_PER_TICK * sawmill_mult * fraction
                     state.wood = 0.0
+
+        elif btype == BuildingType.IRON_MINE:
+            state.iron += workers * config.IRON_MINE_PRODUCTION
 
         elif btype == BuildingType.MARKET:
             # Prefer Planks over Wood for gold production (better rate)
@@ -437,11 +447,26 @@ def _handle_assign_worker(state: GameState, action: ActionAssignWorker) -> None:
 
 def _handle_build_building(state: GameState, action: ActionBuildBuilding) -> None:
     existing = sum(1 for b in state.buildings if b.building_type == action.building_type)
-    cost = _build_cost_for(action.building_type) * (2 ** existing)
-    if state.wood < cost:
-        return  # Cannot afford — silently ignore
 
-    state.wood -= cost
+    # Multi-resource buildings handled separately
+    if action.building_type == BuildingType.IRON_MINE:
+        stone_cost = config.IRON_MINE_BUILD_COST.get("stone", 0) * (2 ** existing)
+        if state.stone < stone_cost:
+            return
+        state.stone -= stone_cost
+    elif action.building_type == BuildingType.BARRACKS:
+        wood_cost = config.BARRACKS_BUILD_COST.get("wood", 0) * (2 ** existing)
+        iron_cost = config.BARRACKS_BUILD_COST.get("iron", 0) * (2 ** existing)
+        if state.wood < wood_cost or state.iron < iron_cost:
+            return
+        state.wood -= wood_cost
+        state.iron -= iron_cost
+    else:
+        cost = _build_cost_for(action.building_type) * (2 ** existing)
+        if state.wood < cost:
+            return  # Cannot afford — silently ignore
+        state.wood -= cost
+
     building = Building(
         id=state.next_building_id,
         building_type=action.building_type,
@@ -467,17 +492,20 @@ def _max_workers_for(btype: BuildingType) -> int:
         BuildingType.MARKET:      config.MARKET_MAX_WORKERS,
         BuildingType.QUARRY:      config.QUARRY_MAX_WORKERS,
         BuildingType.SAWMILL:     config.SAWMILL_MAX_WORKERS,
-    }[btype]
+        BuildingType.IRON_MINE:   config.IRON_MINE_MAX_WORKERS,
+        BuildingType.BARRACKS:    0,  # Barracks has no workers
+    }.get(btype, 0)
 
 
 def _build_cost_for(btype: BuildingType) -> float:
+    """Returns the wood-only build cost for simple buildings. Returns 0 for multi-resource buildings."""
     return {
         BuildingType.FARM:        config.FARM_BUILD_COST_WOOD,
         BuildingType.LUMBER_MILL: config.LUMBERMILL_BUILD_COST_WOOD,
         BuildingType.MARKET:      config.MARKET_BUILD_COST_WOOD,
         BuildingType.QUARRY:      config.QUARRY_BUILD_COST_WOOD,
         BuildingType.SAWMILL:     config.SAWMILL_BUILD_COST_WOOD,
-    }[btype]
+    }.get(btype, 0.0)
 
 
 def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
@@ -515,6 +543,51 @@ def _handle_recruit_citizen(state: GameState) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Military — train soldiers and fight boss
+# ---------------------------------------------------------------------------
+
+def _handle_train_soldier(state: GameState) -> None:
+    if not state.has_barracks:
+        return
+    if state.soldiers >= config.BARRACKS_MAX_SOLDIERS:
+        return
+    food_cost = config.TRAIN_SOLDIER_COST["food"]
+    iron_cost = config.TRAIN_SOLDIER_COST["iron"]
+    if state.food < food_cost or state.iron < iron_cost:
+        return
+    state.food -= food_cost
+    state.iron -= iron_cost
+    state.soldiers += 1
+
+
+def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
+    key = f"{action.q},{action.r}"
+    tile = state.hex_tiles.get(key)
+    if tile is None or not tile.get("explored") or not tile.get("has_boss"):
+        return
+    if not state.has_barracks:
+        return
+    if state.soldiers < config.BOSS_MIN_SOLDIERS:
+        return
+
+    win_prob = state.soldiers / (state.soldiers + config.BOSS_STRENGTH)
+    won = random.random() < win_prob
+
+    if won:
+        state.soldiers = max(0, state.soldiers - config.BOSS_SOLDIERS_LOST_WIN)
+        tile["has_boss"] = False
+        state.boss_fights_won += 1
+        ring = _ring_distance(action.q, action.r)
+        if ring not in state.boss_rings_cleared:
+            state.boss_rings_cleared.append(ring)
+        rewards = config.BOSS_WIN_REWARDS
+        state.gold  = min(state.gold  + rewards.get("gold",  0), config.GOLD_CAP)
+        state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
+    else:
+        state.soldiers = max(0, state.soldiers - config.BOSS_SOLDIERS_LOST_LOSE)
+
+
+# ---------------------------------------------------------------------------
 # Hex world map
 # ---------------------------------------------------------------------------
 
@@ -540,16 +613,28 @@ def _initialize_hex_map(state: GameState) -> None:
     rng = random.Random(state.run_number * 99991 + 12345)
 
     radius = config.HEX_MAP_RADIUS
+
+    # First pass: assign terrain to every hex
+    tiles: dict[str, dict] = {}
+    ring2_keys: list[str] = []
     for q in range(-radius, radius + 1):
         for r in range(max(-radius, -q - radius), min(radius, -q + radius) + 1):
             key = f"{q},{r}"
             if q == 0 and r == 0:
-                state.hex_tiles[key] = {"terrain": "colony", "explored": True}
+                tiles[key] = {"terrain": "colony", "explored": True, "has_boss": False}
             else:
                 terrain = rng.choices(terrain_types, weights=weights)[0]
                 ring = max(abs(q), abs(r), abs(q + r))
-                has_boss = ring >= 2 and rng.random() < config.HEX_BOSS_CHANCE
-                state.hex_tiles[key] = {"terrain": terrain, "explored": False, "has_boss": has_boss}
+                tiles[key] = {"terrain": terrain, "explored": False, "has_boss": False}
+                if ring == 2:
+                    ring2_keys.append(key)
+
+    # Guarantee exactly one boss on a random ring-2 hex (tier 1 boss)
+    if ring2_keys:
+        boss_key = rng.choice(ring2_keys)
+        tiles[boss_key]["has_boss"] = True
+
+    state.hex_tiles = tiles
 
 
 def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
