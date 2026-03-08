@@ -13,8 +13,8 @@ import json
 from dataclasses import dataclass, field
 from typing import List
 
-from game.core.entities import Building, BuildingType, Colonist, GameStatus
 from game.core import config
+from game.core.entities import Building, BuildingType, Colonist, GameStatus
 
 
 @dataclass
@@ -38,7 +38,7 @@ class GameState:
     # -------------------------------------------------------------------
     # Per-tick rate snapshots (updated by engine each tick for display)
     # -------------------------------------------------------------------
-    food_rate: float = 0.0   # net food change last tick
+    food_rate: float = 0.0  # net food change last tick
     wood_rate: float = 0.0
     gold_rate: float = 0.0
     stone_rate: float = 0.0

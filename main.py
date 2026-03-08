@@ -20,9 +20,7 @@ import sys
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Kingdoms of the Forgotten — medieval colony builder."
-    )
+    parser = argparse.ArgumentParser(description="Kingdoms of the Forgotten — medieval colony builder.")
     parser.add_argument(
         "--headless",
         action="store_true",
@@ -100,6 +98,7 @@ def main() -> None:
 
     if args.llm_agent:
         from game.agent.playtest import run_llm_agent
+
         run_llm_agent(
             model=args.model,
             checkpoint_ticks=args.checkpoint_ticks,
@@ -111,12 +110,14 @@ def main() -> None:
 
     if args.headless:
         # Delegate entirely to the agent module — no Pygame needed
-        from game.agent.playtest import run_balance_report, run_strategy_from_state, STRATEGIES
+        from game.agent.playtest import STRATEGIES, run_balance_report, run_strategy_from_state
         from game.core import engine as _engine
 
         if args.load:
-            from game.core.save import load_game
             from pathlib import Path
+
+            from game.core.save import load_game
+
             starting_state = load_game(Path(args.load))
             print(f"Loaded save: {args.load} (tick {starting_state.tick})")
         else:
@@ -125,21 +126,16 @@ def main() -> None:
         if args.strategy:
             name = args.strategy
             strat = STRATEGIES[name]
-            stats = run_strategy_from_state(
-                starting_state, name, strat, runs=args.runs, max_ticks=args.ticks
-            )
+            stats = run_strategy_from_state(starting_state, name, strat, runs=args.runs, max_ticks=args.ticks)
             print(f"\nStrategy: {name.upper()}\n")
             for metric, values in stats.items():
                 print(
-                    f"  {metric:<22}  mean={values['mean']:>8.2f}  "
-                    f"min={values['min']:>8.2f}  max={values['max']:>8.2f}"
+                    f"  {metric:<22}  mean={values['mean']:>8.2f}  min={values['min']:>8.2f}  max={values['max']:>8.2f}"
                 )
         elif args.load:
             for name, strat in STRATEGIES.items():
                 print(f"\n  Strategy: {name.upper()}")
-                stats = run_strategy_from_state(
-                    starting_state, name, strat, runs=args.runs, max_ticks=args.ticks
-                )
+                stats = run_strategy_from_state(starting_state, name, strat, runs=args.runs, max_ticks=args.ticks)
                 for metric, values in stats.items():
                     print(
                         f"    {metric:<22} mean={values['mean']:>8.2f}  "
@@ -156,7 +152,6 @@ def main() -> None:
 
     from game.core import config, engine
     from game.core import save as game_save
-    from game.core.entities import GameStatus
     from game.meta.progression import MetaState
     from game.renderer.display import Renderer
 
@@ -173,7 +168,9 @@ def main() -> None:
                 state = engine.new_game(meta)
             elif args.load:
                 from pathlib import Path
+
                 from game.core.save import load_game
+
                 state = load_game(Path(args.load))
                 print(f"Loaded: {args.load} (tick {state.tick})")
             else:

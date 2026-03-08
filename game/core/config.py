@@ -160,26 +160,26 @@ RESEARCH_TECHS = [
 ]
 
 # Multipliers applied per tech
-RESEARCH_CROP_ROTATION_FARM_MULT    = 1.25
-RESEARCH_REINFORCED_TOOLS_MULT      = 1.20
-RESEARCH_TRADE_ROUTES_MARKET_MULT   = 1.30
-RESEARCH_GUILD_HALLS_PASSIVE_MULT   = 1.50
+RESEARCH_CROP_ROTATION_FARM_MULT = 1.25
+RESEARCH_REINFORCED_TOOLS_MULT = 1.20
+RESEARCH_TRADE_ROUTES_MARKET_MULT = 1.30
+RESEARCH_GUILD_HALLS_PASSIVE_MULT = 1.50
 RESEARCH_STONE_MASONRY_SAWMILL_MULT = 1.30
 
 # ---------------------------------------------------------------------------
 # UI Layout — panels, fonts, buttons
 # ---------------------------------------------------------------------------
-LEFT_PANEL_WIDTH = 480       # was 320 at 1280×720
-RIGHT_PANEL_WIDTH = 600      # was 400
-BOTTOM_BAR_HEIGHT = 80       # was 60
-PANEL_PADDING = 24           # was 16
-FONT_SIZE_LARGE = 32         # was 22
-FONT_SIZE_MEDIUM = 24        # was 17
-FONT_SIZE_SMALL = 18         # was 13
+LEFT_PANEL_WIDTH = 480  # was 320 at 1280×720
+RIGHT_PANEL_WIDTH = 600  # was 400
+BOTTOM_BAR_HEIGHT = 80  # was 60
+PANEL_PADDING = 24  # was 16
+FONT_SIZE_LARGE = 32  # was 22
+FONT_SIZE_MEDIUM = 24  # was 17
+FONT_SIZE_SMALL = 18  # was 13
 
 # Worker assignment +/- buttons
-WORKER_BTN_WIDTH = 40        # was 28
-WORKER_BTN_HEIGHT = 34       # was 24
+WORKER_BTN_WIDTH = 40  # was 28
+WORKER_BTN_HEIGHT = 34  # was 24
 
 # ---------------------------------------------------------------------------
 # Layout spacing — every pixel offset lives here.
@@ -188,39 +188,39 @@ WORKER_BTN_HEIGHT = 34       # was 24
 # ---------------------------------------------------------------------------
 
 # Vertical line-height gaps after headings / data rows
-LINE_HEIGHT_LARGE = 48       # gap after a FONT_SIZE_LARGE heading
-LINE_HEIGHT_MED   = 30       # gap after a FONT_SIZE_MEDIUM label or heading
-LINE_HEIGHT_SMALL = 24       # gap after a FONT_SIZE_SMALL data row
+LINE_HEIGHT_LARGE = 48  # gap after a FONT_SIZE_LARGE heading
+LINE_HEIGHT_MED = 30  # gap after a FONT_SIZE_MEDIUM label or heading
+LINE_HEIGHT_SMALL = 24  # gap after a FONT_SIZE_SMALL data row
 
 # Gaps around horizontal divider lines
-DIVIDER_PADDING = 16         # vertical space after a divider
-SECTION_GAP     = 18         # extra breathing room between major sections
+DIVIDER_PADDING = 16  # vertical space after a divider
+SECTION_GAP = 18  # extra breathing room between major sections
 
 # Win-target progress bar
-PROGRESS_BAR_HEIGHT = 20     # was 14
+PROGRESS_BAR_HEIGHT = 20  # was 14
 
 # Resource rows (left panel)
-RESOURCE_VALUE_X   = 120     # x-offset from row origin to value column  (was 80)
-RESOURCE_RATE_X    = 280     # x-offset from row origin to rate column   (was 180)
-RESOURCE_ROW_HEIGHT = 34     # total height consumed per resource row    (was 26)
+RESOURCE_VALUE_X = 120  # x-offset from row origin to value column  (was 80)
+RESOURCE_RATE_X = 280  # x-offset from row origin to rate column   (was 180)
+RESOURCE_ROW_HEIGHT = 34  # total height consumed per resource row    (was 26)
 
 # Building rows (right panel)
-WORKER_PIP_SIZE    = 14      # side length of each worker-slot pip       (was 10)
-WORKER_PIP_GAP     = 3       # gap between pips                          (was 2)
-BUILDING_HINT_Y    = 20      # y-offset from pip row to production hint  (was 14)
-BUILDING_ROW_HEIGHT = 82     # total height consumed per building row    (was 56)
-BUILDING_ROW_GAP   = 6       # extra gap between buildings               (was 4)
+WORKER_PIP_SIZE = 14  # side length of each worker-slot pip       (was 10)
+WORKER_PIP_GAP = 3  # gap between pips                          (was 2)
+BUILDING_HINT_Y = 20  # y-offset from pip row to production hint  (was 14)
+BUILDING_ROW_HEIGHT = 82  # total height consumed per building row    (was 56)
+BUILDING_ROW_GAP = 6  # extra gap between buildings               (was 4)
 
 # Build buttons (right panel construct section)
-BUILD_BTN_HEIGHT = 40        # rect height of a 'Build X' button         (was 28)
-BUILD_BTN_GAP    = 8         # gap between consecutive build buttons     (was 6)
+BUILD_BTN_HEIGHT = 40  # rect height of a 'Build X' button         (was 28)
+BUILD_BTN_GAP = 8  # gap between consecutive build buttons     (was 6)
 
 # Bottom bar layout (all x-positions relative to bar left edge)
-BOTTOM_BAR_TICK_W        = 270   # width of tick counter column         (was 180)
-BOTTOM_BAR_SPEED_LABEL_W = 100   # width of "Speed:" label              (was 68)
-BOTTOM_BAR_SPEED_ITEM_W  = 68    # width per speed option ("1x" etc.)   (was 46)
-BOTTOM_BAR_COLONIST_GAP  = 30    # gap before colonist count            (was 20)
-BOTTOM_BAR_STARVE_GAP    = 200   # gap before starvation count          (was 200)
+BOTTOM_BAR_TICK_W = 270  # width of tick counter column         (was 180)
+BOTTOM_BAR_SPEED_LABEL_W = 100  # width of "Speed:" label              (was 68)
+BOTTOM_BAR_SPEED_ITEM_W = 68  # width per speed option ("1x" etc.)   (was 46)
+BOTTOM_BAR_COLONIST_GAP = 30  # gap before colonist count            (was 20)
+BOTTOM_BAR_STARVE_GAP = 200  # gap before starvation count          (was 200)
 
 # ---------------------------------------------------------------------------
 # Colors (R, G, B)
@@ -247,10 +247,10 @@ COLOR_WIN = (100, 220, 120)
 COLOR_LOSE = (220, 60, 60)
 COLOR_BOTTOM_BAR = (22, 18, 12)
 COLOR_SPEED_HIGHLIGHT = (200, 170, 80)
-COLOR_WINTER = (150, 200, 255)        # icy blue for winter label
-COLOR_LP = (180, 120, 255)            # purple for LP
-COLOR_SEASON_NORMAL = (120, 160, 100) # muted green for non-winter seasons
-COLOR_UNLOCK = (200, 170, 80)         # gold-ish for unlocked upgrades
+COLOR_WINTER = (150, 200, 255)  # icy blue for winter label
+COLOR_LP = (180, 120, 255)  # purple for LP
+COLOR_SEASON_NORMAL = (120, 160, 100)  # muted green for non-winter seasons
+COLOR_UNLOCK = (200, 170, 80)  # gold-ish for unlocked upgrades
 
 # ---------------------------------------------------------------------------
 # Hex World Map
@@ -267,37 +267,37 @@ HEX_EXPLORE_COST_BY_RING = {
 
 # Weighted random terrain generation (terrain -> weight)
 HEX_TERRAIN_WEIGHTS = {
-    "plains":    30,
-    "forest":    25,
-    "hills":     20,
+    "plains": 30,
+    "forest": 25,
+    "hills": 20,
     "mountains": 10,
-    "swamp":     10,
-    "ruins":      5,
+    "swamp": 10,
+    "ruins": 5,
 }
 
 # One-time resource rewards per terrain type (resource name -> amount)
 HEX_TERRAIN_REWARDS = {
-    "plains":    {"food": 80},
-    "forest":    {"wood": 60, "planks": 15},
-    "hills":     {"stone": 50},
+    "plains": {"food": 80},
+    "forest": {"wood": 60, "planks": 15},
+    "hills": {"stone": 50},
     "mountains": {"stone": 80, "gold": 20},
-    "swamp":     {"food": 30, "wood": 30},
-    "ruins":     {"gold": 80, "planks": 30},
-    "colony":    {},
+    "swamp": {"food": 30, "wood": 30},
+    "ruins": {"gold": 80, "planks": 30},
+    "colony": {},
 }
 
 # Hex rendering
 HEX_SIZE = 60
 HEX_TERRAIN_COLORS = {
-    "plains":    (100, 160,  70),
-    "forest":    ( 30,  90,  30),
-    "hills":     (130, 110,  70),
+    "plains": (100, 160, 70),
+    "forest": (30, 90, 30),
+    "hills": (130, 110, 70),
     "mountains": (120, 120, 130),
-    "swamp":     ( 60,  90,  70),
-    "ruins":     (110,  80,  55),
-    "colony":    (190, 140,  45),
+    "swamp": (60, 90, 70),
+    "ruins": (110, 80, 55),
+    "colony": (190, 140, 45),
 }
-HEX_FOG_COLOR        = (25, 25, 35)
+HEX_FOG_COLOR = (25, 25, 35)
 HEX_FOG_BORDER_COLOR = (60, 60, 85)
 HEX_EXPLORABLE_COLOR = (40, 40, 58)
 HEX_BOSS_BORDER_COLOR = (200, 40, 40)
@@ -310,26 +310,26 @@ HEX_BOSS_BORDER_COLOR = (200, 40, 40)
 # Iron resource
 # ---------------------------------------------------------------------------
 STARTING_IRON = 0
-IRON_CAP      = 9999
+IRON_CAP = 9999
 
 # Iron Mine building
-IRON_MINE_BUILD_COST  = {"stone": 30}
+IRON_MINE_BUILD_COST = {"stone": 30}
 IRON_MINE_MAX_WORKERS = 6
-IRON_MINE_PRODUCTION  = 0.5   # iron per worker per tick
+IRON_MINE_PRODUCTION = 0.5  # iron per worker per tick
 
 # Barracks building
-BARRACKS_BUILD_COST   = {"wood": 60, "iron": 20}
+BARRACKS_BUILD_COST = {"wood": 60, "iron": 20}
 BARRACKS_MAX_SOLDIERS = 20
 
 # Soldier training
 TRAIN_SOLDIER_COST = {"food": 10, "iron": 5}
 
 # Boss fight
-BOSS_MIN_SOLDIERS       = 5    # minimum soldiers required to attempt
-BOSS_STRENGTH           = 8    # lower = easier; win_prob = soldiers / (soldiers + BOSS_STRENGTH)
-BOSS_WIN_REWARDS        = {"gold": 100, "stone": 50}
-BOSS_SOLDIERS_LOST_WIN  = 2    # soldiers consumed on victory
-BOSS_SOLDIERS_LOST_LOSE = 5    # soldiers consumed on defeat
+BOSS_MIN_SOLDIERS = 5  # minimum soldiers required to attempt
+BOSS_STRENGTH = 8  # lower = easier; win_prob = soldiers / (soldiers + BOSS_STRENGTH)
+BOSS_WIN_REWARDS = {"gold": 100, "stone": 50}
+BOSS_SOLDIERS_LOST_WIN = 2  # soldiers consumed on victory
+BOSS_SOLDIERS_LOST_LOSE = 5  # soldiers consumed on defeat
 # Legacy Point bonus awarded the *first time ever* a boss tier is cleared (across all runs)
 BOSS_LP_REWARD = 1
 

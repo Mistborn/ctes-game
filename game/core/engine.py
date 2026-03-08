@@ -10,9 +10,8 @@ Public API:
 
 from __future__ import annotations
 
-import copy
 import random
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 from game.core import config
 from game.core.entities import (
@@ -38,6 +37,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
+
 
 def new_game(meta: Optional["MetaState"] = None) -> GameState:
     """Return a freshly initialised GameState, applying meta upgrades if provided."""
@@ -112,6 +112,7 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
 # Main tick
 # ---------------------------------------------------------------------------
 
+
 def tick(state: GameState) -> GameState:
     """
     Advance the simulation by one tick.
@@ -131,12 +132,12 @@ def tick(state: GameState) -> GameState:
             _add_season_log(state, curr_season)
 
     # Snapshot resources before tick for rate calculation
-    food_before   = state.food
-    wood_before   = state.wood
-    gold_before   = state.gold
-    stone_before  = state.stone
+    food_before = state.food
+    wood_before = state.wood
+    gold_before = state.gold
+    stone_before = state.stone
     planks_before = state.planks
-    iron_before   = state.iron
+    iron_before = state.iron
 
     # 1. Buildings produce resources
     _process_production(state)
@@ -145,27 +146,27 @@ def tick(state: GameState) -> GameState:
     _process_consumption(state)
 
     # 3. Apply resource caps
-    state.food   = min(state.food,   config.FOOD_CAP)
-    state.wood   = min(state.wood,   config.WOOD_CAP)
-    state.gold   = min(state.gold,   config.GOLD_CAP)
-    state.stone  = min(state.stone,  config.STONE_CAP)
+    state.food = min(state.food, config.FOOD_CAP)
+    state.wood = min(state.wood, config.WOOD_CAP)
+    state.gold = min(state.gold, config.GOLD_CAP)
+    state.stone = min(state.stone, config.STONE_CAP)
     state.planks = min(state.planks, config.PLANKS_CAP)
-    state.iron   = min(state.iron,   config.IRON_CAP)
+    state.iron = min(state.iron, config.IRON_CAP)
     # Resources cannot go below zero
-    state.food   = max(state.food,   0.0)
-    state.wood   = max(state.wood,   0.0)
-    state.gold   = max(state.gold,   0.0)
-    state.stone  = max(state.stone,  0.0)
+    state.food = max(state.food, 0.0)
+    state.wood = max(state.wood, 0.0)
+    state.gold = max(state.gold, 0.0)
+    state.stone = max(state.stone, 0.0)
     state.planks = max(state.planks, 0.0)
-    state.iron   = max(state.iron,   0.0)
+    state.iron = max(state.iron, 0.0)
 
     # 4. Update per-tick rate display values
-    state.food_rate   = state.food   - food_before
-    state.wood_rate   = state.wood   - wood_before
-    state.gold_rate   = state.gold   - gold_before
-    state.stone_rate  = state.stone  - stone_before
+    state.food_rate = state.food - food_before
+    state.wood_rate = state.wood - wood_before
+    state.gold_rate = state.gold - gold_before
+    state.stone_rate = state.stone - stone_before
     state.planks_rate = state.planks - planks_before
-    state.iron_rate   = state.iron   - iron_before
+    state.iron_rate = state.iron - iron_before
 
     # 5. Track total gold produced (for LP)
     if state.gold_rate > 0:
@@ -186,6 +187,7 @@ def tick(state: GameState) -> GameState:
 # ---------------------------------------------------------------------------
 # Action dispatcher
 # ---------------------------------------------------------------------------
+
 
 def apply_action(state: GameState, action) -> GameState:
     """Apply a player action to the state. Returns the mutated state."""
@@ -216,6 +218,7 @@ def apply_action(state: GameState, action) -> GameState:
 # State snapshot (for renderer / agent)
 # ---------------------------------------------------------------------------
 
+
 def get_state(state: GameState) -> dict:
     """Return a plain-dict snapshot of the current state."""
     return state.to_dict()
@@ -225,13 +228,16 @@ def get_state(state: GameState) -> dict:
 # Internal helpers — production
 # ---------------------------------------------------------------------------
 
+
 def _process_production(state: GameState) -> None:
     """Apply per-tick resource production from all buildings."""
     researched = set(state.researched_tech_ids)
     passive_mult = config.RESEARCH_GUILD_HALLS_PASSIVE_MULT if "guild_halls" in researched else 1.0
-    farm_mult    = config.RESEARCH_CROP_ROTATION_FARM_MULT  if "crop_rotation" in researched else 1.0
-    tool_mult    = config.RESEARCH_REINFORCED_TOOLS_MULT    if "reinforced_tools" in researched else 1.0
-    market_mult  = (config.RESEARCH_TRADE_ROUTES_MARKET_MULT if "trade_routes" in researched else 1.0) * state.market_gold_bonus_mult
+    farm_mult = config.RESEARCH_CROP_ROTATION_FARM_MULT if "crop_rotation" in researched else 1.0
+    tool_mult = config.RESEARCH_REINFORCED_TOOLS_MULT if "reinforced_tools" in researched else 1.0
+    market_mult = (
+        config.RESEARCH_TRADE_ROUTES_MARKET_MULT if "trade_routes" in researched else 1.0
+    ) * state.market_gold_bonus_mult
     sawmill_mult = config.RESEARCH_STONE_MASONRY_SAWMILL_MULT if "stone_masonry" in researched else 1.0
     winter_food_mult = config.WINTER_FOOD_PRODUCTION_MULT if _is_winter(state.tick) else 1.0
 
@@ -278,14 +284,16 @@ def _process_production(state: GameState) -> None:
         elif btype == BuildingType.MARKET:
             # Prefer Planks over Wood for gold production (better rate)
             planks_needed = workers * config.MARKET_PLANKS_PER_WORKER_PER_TICK
-            wood_needed   = workers * config.MARKET_WOOD_PER_WORKER_PER_TICK
+            wood_needed = workers * config.MARKET_WOOD_PER_WORKER_PER_TICK
             if state.planks >= planks_needed:
                 state.planks -= planks_needed
                 state.gold += workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * market_mult
             elif state.planks > 0:
                 # Partial planks: use planks first, then wood for the remainder
                 planks_fraction = state.planks / planks_needed
-                state.gold += workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * market_mult * planks_fraction
+                state.gold += (
+                    workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * market_mult * planks_fraction
+                )
                 state.planks = 0.0
                 # Fill the remaining fraction with wood
                 remaining_fraction = 1.0 - planks_fraction
@@ -311,6 +319,7 @@ def _process_production(state: GameState) -> None:
 # ---------------------------------------------------------------------------
 # Internal helpers — consumption
 # ---------------------------------------------------------------------------
+
 
 def _process_consumption(state: GameState) -> None:
     """
@@ -366,6 +375,7 @@ def _remove_starving_colonists(state: GameState, count: int) -> None:
 # Internal helpers — arrivals
 # ---------------------------------------------------------------------------
 
+
 def _add_colonist(state: GameState) -> Colonist:
     colonist = Colonist(id=state.next_colonist_id)
     state.next_colonist_id += 1
@@ -373,9 +383,7 @@ def _add_colonist(state: GameState) -> Colonist:
     return colonist
 
 
-def _assign_colonist_to_building(
-    state: GameState, building_id: int, count: int = 1
-) -> None:
+def _assign_colonist_to_building(state: GameState, building_id: int, count: int = 1) -> None:
     """Assign up to `count` idle colonists to a building (startup helper)."""
     building = state.building_by_id(building_id)
     if building is None:
@@ -411,6 +419,7 @@ def _auto_assign_idle_colonists(state: GameState) -> None:
 # ---------------------------------------------------------------------------
 # Internal helpers — actions
 # ---------------------------------------------------------------------------
+
 
 def _handle_assign_worker(state: GameState, action: ActionAssignWorker) -> None:
     building = state.building_by_id(action.building_id)
@@ -448,19 +457,19 @@ def _handle_build_building(state: GameState, action: ActionBuildBuilding) -> Non
 
     # Multi-resource buildings handled separately
     if action.building_type == BuildingType.IRON_MINE:
-        stone_cost = config.IRON_MINE_BUILD_COST.get("stone", 0) * (2 ** existing)
+        stone_cost = config.IRON_MINE_BUILD_COST.get("stone", 0) * (2**existing)
         if state.stone < stone_cost:
             return
         state.stone -= stone_cost
     elif action.building_type == BuildingType.BARRACKS:
-        wood_cost = config.BARRACKS_BUILD_COST.get("wood", 0) * (2 ** existing)
-        iron_cost = config.BARRACKS_BUILD_COST.get("iron", 0) * (2 ** existing)
+        wood_cost = config.BARRACKS_BUILD_COST.get("wood", 0) * (2**existing)
+        iron_cost = config.BARRACKS_BUILD_COST.get("iron", 0) * (2**existing)
         if state.wood < wood_cost or state.iron < iron_cost:
             return
         state.wood -= wood_cost
         state.iron -= iron_cost
     else:
-        cost = _build_cost_for(action.building_type) * (2 ** existing)
+        cost = _build_cost_for(action.building_type) * (2**existing)
         if state.wood < cost:
             return  # Cannot afford — silently ignore
         state.wood -= cost
@@ -483,26 +492,27 @@ def _handle_set_speed(state: GameState, action: ActionSetSpeed) -> None:
 # Internal helpers — lookups from config
 # ---------------------------------------------------------------------------
 
+
 def _max_workers_for(btype: BuildingType) -> int:
     return {
-        BuildingType.FARM:        config.FARM_MAX_WORKERS,
+        BuildingType.FARM: config.FARM_MAX_WORKERS,
         BuildingType.LUMBER_MILL: config.LUMBERMILL_MAX_WORKERS,
-        BuildingType.MARKET:      config.MARKET_MAX_WORKERS,
-        BuildingType.QUARRY:      config.QUARRY_MAX_WORKERS,
-        BuildingType.SAWMILL:     config.SAWMILL_MAX_WORKERS,
-        BuildingType.IRON_MINE:   config.IRON_MINE_MAX_WORKERS,
-        BuildingType.BARRACKS:    0,  # Barracks has no workers
+        BuildingType.MARKET: config.MARKET_MAX_WORKERS,
+        BuildingType.QUARRY: config.QUARRY_MAX_WORKERS,
+        BuildingType.SAWMILL: config.SAWMILL_MAX_WORKERS,
+        BuildingType.IRON_MINE: config.IRON_MINE_MAX_WORKERS,
+        BuildingType.BARRACKS: 0,  # Barracks has no workers
     }.get(btype, 0)
 
 
 def _build_cost_for(btype: BuildingType) -> float:
     """Returns the wood-only build cost for simple buildings. Returns 0 for multi-resource buildings."""
     return {
-        BuildingType.FARM:        config.FARM_BUILD_COST_WOOD,
+        BuildingType.FARM: config.FARM_BUILD_COST_WOOD,
         BuildingType.LUMBER_MILL: config.LUMBERMILL_BUILD_COST_WOOD,
-        BuildingType.MARKET:      config.MARKET_BUILD_COST_WOOD,
-        BuildingType.QUARRY:      config.QUARRY_BUILD_COST_WOOD,
-        BuildingType.SAWMILL:     config.SAWMILL_BUILD_COST_WOOD,
+        BuildingType.MARKET: config.MARKET_BUILD_COST_WOOD,
+        BuildingType.QUARRY: config.QUARRY_BUILD_COST_WOOD,
+        BuildingType.SAWMILL: config.SAWMILL_BUILD_COST_WOOD,
     }.get(btype, 0.0)
 
 
@@ -511,9 +521,7 @@ def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
     if action.tech_id in state.researched_tech_ids:
         return
     # Find the tech definition
-    tech_def = next(
-        (t for t in config.RESEARCH_TECHS if t["tech_id"] == action.tech_id), None
-    )
+    tech_def = next((t for t in config.RESEARCH_TECHS if t["tech_id"] == action.tech_id), None)
     if tech_def is None:
         return
     cost = tech_def["gold_cost"]
@@ -528,7 +536,7 @@ def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
 
 def _colonist_recruit_cost(state: GameState) -> int:
     extra = state.colonist_count - config.STARTING_COLONISTS
-    return round(config.RECRUIT_CITIZEN_FOOD_COST * (config.COLONIST_COST_SCALE ** extra))
+    return round(config.RECRUIT_CITIZEN_FOOD_COST * (config.COLONIST_COST_SCALE**extra))
 
 
 def _handle_recruit_citizen(state: GameState) -> None:
@@ -536,7 +544,7 @@ def _handle_recruit_citizen(state: GameState) -> None:
     if state.food < cost:
         return
     state.food -= cost
-    colonist = _add_colonist(state)
+    _add_colonist(state)
     if state.colonist_count > state.peak_colonists:
         state.peak_colonists = state.colonist_count
 
@@ -544,6 +552,7 @@ def _handle_recruit_citizen(state: GameState) -> None:
 # ---------------------------------------------------------------------------
 # Military — train soldiers and fight boss
 # ---------------------------------------------------------------------------
+
 
 def _handle_train_soldier(state: GameState) -> None:
     if not state.has_barracks:
@@ -580,7 +589,7 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
         if ring not in state.boss_rings_cleared:
             state.boss_rings_cleared.append(ring)
         rewards = config.BOSS_WIN_REWARDS
-        state.gold  = min(state.gold  + rewards.get("gold",  0), config.GOLD_CAP)
+        state.gold = min(state.gold + rewards.get("gold", 0), config.GOLD_CAP)
         state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
     else:
         state.soldiers = max(0, state.soldiers - config.BOSS_SOLDIERS_LOST_LOSE)
@@ -589,6 +598,7 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
 # ---------------------------------------------------------------------------
 # Hex world map
 # ---------------------------------------------------------------------------
+
 
 def _ring_distance(q: int, r: int) -> int:
     return max(abs(q), abs(r), abs(q + r))
@@ -647,28 +657,33 @@ def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
         return
 
     cost = config.HEX_EXPLORE_COST_BY_RING.get(ring, {})
-    if (state.wood < cost.get("wood", 0) or state.stone < cost.get("stone", 0)
-            or state.gold < cost.get("gold", 0) or state.planks < cost.get("planks", 0)):
+    if (
+        state.wood < cost.get("wood", 0)
+        or state.stone < cost.get("stone", 0)
+        or state.gold < cost.get("gold", 0)
+        or state.planks < cost.get("planks", 0)
+    ):
         return
 
-    state.wood   -= cost.get("wood", 0)
-    state.stone  -= cost.get("stone", 0)
-    state.gold   -= cost.get("gold", 0)
+    state.wood -= cost.get("wood", 0)
+    state.stone -= cost.get("stone", 0)
+    state.gold -= cost.get("gold", 0)
     state.planks -= cost.get("planks", 0)
 
     tile["explored"] = True
 
     rewards = config.HEX_TERRAIN_REWARDS.get(tile["terrain"], {})
-    state.food   = min(state.food   + rewards.get("food", 0),   config.FOOD_CAP)
-    state.wood   = min(state.wood   + rewards.get("wood", 0),   config.WOOD_CAP)
-    state.gold   = min(state.gold   + rewards.get("gold", 0),   config.GOLD_CAP)
-    state.stone  = min(state.stone  + rewards.get("stone", 0),  config.STONE_CAP)
+    state.food = min(state.food + rewards.get("food", 0), config.FOOD_CAP)
+    state.wood = min(state.wood + rewards.get("wood", 0), config.WOOD_CAP)
+    state.gold = min(state.gold + rewards.get("gold", 0), config.GOLD_CAP)
+    state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
     state.planks = min(state.planks + rewards.get("planks", 0), config.PLANKS_CAP)
 
 
 # ---------------------------------------------------------------------------
 # Win / lose check
 # ---------------------------------------------------------------------------
+
 
 def _check_endgame(state: GameState) -> None:
     if state.status != GameStatus.PLAYING:
@@ -683,6 +698,7 @@ def _check_endgame(state: GameState) -> None:
 # Season helpers
 # ---------------------------------------------------------------------------
 
+
 def _add_season_log(state: GameState, season: str) -> None:
     """Append a seasonal event message to state.info_log."""
     messages = {
@@ -696,7 +712,7 @@ def _add_season_log(state: GameState, season: str) -> None:
         return
     state.info_log.append([state.tick, entry[0], entry[1]])
     if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
-        state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES:]
+        state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
 
 
 def _is_winter(tick: int) -> bool:

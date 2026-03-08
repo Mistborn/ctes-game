@@ -34,6 +34,7 @@ SAVES_DIR = Path("saves")
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _bid(state, btype: BuildingType, index: int = 0):
     """Return the building id of the nth building of a type."""
     found = [b.id for b in state.buildings if b.building_type == btype]
@@ -69,13 +70,13 @@ def _explore(state, coords):
 
 
 RING1 = [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)]
-RING2 = [(2, 0), (2, -1), (2, -2), (1, -2), (0, -2), (-1, -1),
-         (-2, 0), (-2, 1), (-2, 2), (-1, 2), (0, 2), (1, 1)]
+RING2 = [(2, 0), (2, -1), (2, -2), (1, -2), (0, -2), (-1, -1), (-2, 0), (-2, 1), (-2, 2), (-1, 2), (0, 2), (1, 1)]
 
 
 # ---------------------------------------------------------------------------
 # Scenarios
 # ---------------------------------------------------------------------------
+
 
 def scenario_mid_game():
     """
@@ -86,9 +87,9 @@ def scenario_mid_game():
     state.tick = 200
 
     # Comfortable mid-game resources
-    state.food  = 80.0
-    state.wood  = 150.0
-    state.gold  = 120.0
+    state.food = 80.0
+    state.wood = 150.0
+    state.gold = 120.0
     state.stone = 50.0
     state.planks = 20.0
 
@@ -114,9 +115,9 @@ def scenario_mid_game():
     _explore(state, RING2[:4])
 
     # Settle resources to a realistic mid-game level
-    state.gold  = 120.0
-    state.wood  = 80.0
-    state.food  = 80.0
+    state.gold = 120.0
+    state.wood = 80.0
+    state.food = 80.0
 
     SAVES_DIR.mkdir(exist_ok=True)
     path = save_game(state, SAVES_DIR / "scenario_mid_game.json")
@@ -131,12 +132,12 @@ def scenario_pre_boss():
     state = engine.new_game()
     state.tick = 500
 
-    state.food  = 150.0
-    state.wood  = 300.0
-    state.gold  = 500.0
+    state.food = 150.0
+    state.wood = 300.0
+    state.gold = 500.0
     state.stone = 300.0
     state.planks = 80.0
-    state.iron  = 60.0
+    state.iron = 60.0
 
     # 5 → 14 colonists
     _recruit(state, 9)
@@ -154,16 +155,15 @@ def scenario_pre_boss():
     _build(state, BuildingType.BARRACKS)
 
     # Assign workers
-    _add_workers(state, BuildingType.FARM,        3)
+    _add_workers(state, BuildingType.FARM, 3)
     _add_workers(state, BuildingType.LUMBER_MILL, 2)
-    _add_workers(state, BuildingType.MARKET,      3)
-    _add_workers(state, BuildingType.QUARRY,      2)
-    _add_workers(state, BuildingType.SAWMILL,     2)
-    _add_workers(state, BuildingType.IRON_MINE,   2)
+    _add_workers(state, BuildingType.MARKET, 3)
+    _add_workers(state, BuildingType.QUARRY, 2)
+    _add_workers(state, BuildingType.SAWMILL, 2)
+    _add_workers(state, BuildingType.IRON_MINE, 2)
 
     # Research everything
-    _research(state, "crop_rotation", "reinforced_tools", "trade_routes",
-              "guild_halls", "stone_masonry", "cartography")
+    _research(state, "crop_rotation", "reinforced_tools", "trade_routes", "guild_halls", "stone_masonry", "cartography")
 
     # Explore full rings 1 and 2
     _explore(state, RING1 + RING2)
@@ -172,11 +172,11 @@ def scenario_pre_boss():
     state.soldiers = 10
 
     # Settle resources
-    state.gold  = 300.0
-    state.wood  = 120.0
-    state.food  = 150.0
+    state.gold = 300.0
+    state.wood = 120.0
+    state.food = 150.0
     state.stone = 80.0
-    state.iron  = 30.0
+    state.iron = 30.0
 
     SAVES_DIR.mkdir(exist_ok=True)
     path = save_game(state, SAVES_DIR / "scenario_pre_boss.json")

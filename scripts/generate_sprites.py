@@ -29,19 +29,18 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from PIL import Image, ImageDraw
 from google import genai
 from google.genai import types
-
+from PIL import Image, ImageDraw
 
 # ---------------------------------------------------------------------------
 # Constants — must match game/core/config.py HEX_SIZE = 60
 # ---------------------------------------------------------------------------
-HEX_W = 120   # 2 * HEX_SIZE
-HEX_H = 104   # ceil(sqrt(3) * HEX_SIZE) = ceil(103.92)
-CX    = 60    # sprite center x
-CY    = 52    # sprite center y
-R     = 60    # hex circumradius (same as HEX_SIZE)
+HEX_W = 120  # 2 * HEX_SIZE
+HEX_H = 104  # ceil(sqrt(3) * HEX_SIZE) = ceil(103.92)
+CX = 60  # sprite center x
+CY = 52  # sprite center y
+R = 60  # hex circumradius (same as HEX_SIZE)
 
 ASSETS_DIR = Path(__file__).parent.parent / "assets" / "tiles"
 
@@ -79,7 +78,8 @@ DEFAULT_TERRAIN_PROMPTS: dict[str, str] = {
     "ruins": (
         "Top-down aerial view of ancient stone ruins overgrown with vines, "
         "crumbling walls and columns, weathered brown and grey stones, "
-        "mysterious atmosphere, fantasy map tile art style, tileable texture, seamless edges, full bleed to corners, square crop"
+        "mysterious atmosphere, fantasy map tile art style, tileable texture, "
+        "seamless edges, full bleed to corners, square crop"
     ),
     "colony": (
         "Top-down aerial view of a small medieval settlement, thatched roof cottages, "
@@ -96,11 +96,7 @@ def make_hex_mask() -> Image.Image:
     """RGBA image: white inside the flat-top hex polygon, transparent outside."""
     mask = Image.new("RGBA", (HEX_W, HEX_H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(mask)
-    vertices = [
-        (CX + R * math.cos(math.radians(60 * i)),
-         CY + R * math.sin(math.radians(60 * i)))
-        for i in range(6)
-    ]
+    vertices = [(CX + R * math.cos(math.radians(60 * i)), CY + R * math.sin(math.radians(60 * i))) for i in range(6)]
     draw.polygon(vertices, fill=(255, 255, 255, 255))
     return mask
 
@@ -153,9 +149,7 @@ def save_sprite(img: Image.Image, terrain: str) -> None:
 # Argument parsing + prompt loading
 # ---------------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Generate hex tile sprites via Google Imagen"
-    )
+    p = argparse.ArgumentParser(description="Generate hex tile sprites via Google Imagen")
     p.add_argument(
         "--api-key",
         default=os.environ.get("GOOGLE_API_KEY"),
@@ -211,8 +205,7 @@ def main() -> None:
     terrains: tuple[str, ...] = tuple(args.terrain) if args.terrain else ALL_TERRAINS
     unknown = set(terrains) - set(ALL_TERRAINS)
     if unknown:
-        sys.exit(f"Error: unknown terrain(s): {', '.join(sorted(unknown))}. "
-                 f"Valid choices: {', '.join(ALL_TERRAINS)}")
+        sys.exit(f"Error: unknown terrain(s): {', '.join(sorted(unknown))}. Valid choices: {', '.join(ALL_TERRAINS)}")
 
     custom = load_custom_prompts(args)
     prompts = {t: custom.get(t, DEFAULT_TERRAIN_PROMPTS[t]) for t in terrains}
