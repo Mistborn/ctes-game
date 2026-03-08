@@ -301,7 +301,8 @@ HEX_EXPLORABLE_COLOR = (40, 40, 58)
 HEX_BOSS_BORDER_COLOR = (200, 40, 40)
 
 # Probability that a non-colony hex has a boss monster (rings 2+ only)
-HEX_BOSS_CHANCE = 0.15
+# (No longer used — boss placement is now deterministic; kept as a tombstone.)
+# HEX_BOSS_CHANCE = 0.15
 
 # ---------------------------------------------------------------------------
 # Iron resource
@@ -327,6 +328,28 @@ BOSS_STRENGTH           = 8    # lower = easier; win_prob = soldiers / (soldiers
 BOSS_WIN_REWARDS        = {"gold": 100, "stone": 50}
 BOSS_SOLDIERS_LOST_WIN  = 2    # soldiers consumed on victory
 BOSS_SOLDIERS_LOST_LOSE = 5    # soldiers consumed on defeat
+# Legacy Point bonus awarded the *first time ever* a boss tier is cleared (across all runs)
+BOSS_LP_REWARD = 1
+
+# ---------------------------------------------------------------------------
+# Boss tier design notes
+# ---------------------------------------------------------------------------
+# Tier 1 — Ring 2 (current): one guaranteed boss.
+#   Requirements: Iron Mine → Barracks → soldiers.
+#   Reward: gold + stone + 1 LP (first kill only).
+#
+# Tier 2 — Ring 4 (outermost ring, placeholder ideas):
+#   A harder boss requiring a larger or better-equipped army.
+#   Possible mechanics to consider:
+#     • Require a "Forge" building (upgrades soldiers to knights, higher combat power)
+#     • Require N knights instead of N soldiers (knights = iron + planks cost)
+#     • Stronger base difficulty: BOSS2_STRENGTH = 20 (vs 8 for tier 1)
+#     • Steeper soldier losses on defeat: BOSS2_SOLDIERS_LOST_LOSE = 8
+#     • Richer rewards: gold + planks + iron (rare post-game resources)
+#     • Unlock a special meta upgrade slot instead of LP (unique one-time reward)
+#     • Could have a "mini-boss escort" mechanic: 2–3 ring-4 tiles have guards
+#       that must be cleared before the boss hex becomes fightable
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # Seasons

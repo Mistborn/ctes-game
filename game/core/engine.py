@@ -566,6 +566,9 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
         state.soldiers = max(0, state.soldiers - config.BOSS_SOLDIERS_LOST_WIN)
         tile["has_boss"] = False
         state.boss_fights_won += 1
+        ring = _ring_distance(action.q, action.r)
+        if ring not in state.boss_rings_cleared:
+            state.boss_rings_cleared.append(ring)
         rewards = config.BOSS_WIN_REWARDS
         state.gold  = min(state.gold  + rewards.get("gold",  0), config.GOLD_CAP)
         state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
@@ -599,16 +602,28 @@ def _initialize_hex_map(state: GameState) -> None:
     rng = random.Random(state.run_number * 99991 + 12345)
 
     radius = config.HEX_MAP_RADIUS
+
+    # First pass: assign terrain to every hex
+    tiles: dict[str, dict] = {}
+    ring2_keys: list[str] = []
     for q in range(-radius, radius + 1):
         for r in range(max(-radius, -q - radius), min(radius, -q + radius) + 1):
             key = f"{q},{r}"
             if q == 0 and r == 0:
-                state.hex_tiles[key] = {"terrain": "colony", "explored": True}
+                tiles[key] = {"terrain": "colony", "explored": True, "has_boss": False}
             else:
                 terrain = rng.choices(terrain_types, weights=weights)[0]
                 ring = max(abs(q), abs(r), abs(q + r))
-                has_boss = ring >= 2 and rng.random() < config.HEX_BOSS_CHANCE
-                state.hex_tiles[key] = {"terrain": terrain, "explored": False, "has_boss": has_boss}
+                tiles[key] = {"terrain": terrain, "explored": False, "has_boss": False}
+                if ring == 2:
+                    ring2_keys.append(key)
+
+    # Guarantee exactly one boss on a random ring-2 hex (tier 1 boss)
+    if ring2_keys:
+        boss_key = rng.choice(ring2_keys)
+        tiles[boss_key]["has_boss"] = True
+
+    state.hex_tiles = tiles
 
 
 def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
