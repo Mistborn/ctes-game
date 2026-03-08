@@ -373,18 +373,11 @@ LP_PER_WIN = 1
 # ---------------------------------------------------------------------------
 UPGRADES = [
     {
-        "id": "extra_colonists_1",
-        "name": "Experienced Settlers",
-        "description": "Start with 6 colonists",
-        "lp_cost": 1,
-        "requires": None,
-    },
-    {
         "id": "extra_colonists_2",
         "name": "Growing Community",
         "description": "Start with 7 colonists",
         "lp_cost": 3,
-        "requires": "extra_colonists_1",
+        "requires": None,
     },
     {
         "id": "hearty_colonists",

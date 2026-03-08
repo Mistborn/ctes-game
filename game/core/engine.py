@@ -48,11 +48,9 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
         state.run_number = meta.run_number
         unlocked = set(meta.unlocked_upgrades)
 
-        # Starting colonist count (use highest tier only)
+        # Starting colonist count
         if "extra_colonists_2" in unlocked:
             starting_colonists = 7
-        elif "extra_colonists_1" in unlocked:
-            starting_colonists = 6
         else:
             starting_colonists = config.STARTING_COLONISTS
 

@@ -1380,57 +1380,17 @@ class Renderer:
         self._blit(f"Total runs: {meta.total_runs}  Wins: {meta.total_wins}", self.font_small, C.COLOR_TEXT_DISABLED, lx, ly)
 
         # ---------------------------------------------------------------
-        # Middle: Automation upgrades
+        # Right: Upgrade shop (all upgrades, including automation)
         # ---------------------------------------------------------------
-        _automation_ids = {"auto_hire", "auto_assign"}
-        mx, my = 700, 110
-        self._blit("AUTOMATION", self.font_med, C.COLOR_TEXT_SECONDARY, mx, my)
-        my += C.LINE_HEIGHT_MED
-        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (mx, my), (mx + 420, my))
-        my += C.DIVIDER_PADDING
-
-        for upgrade in C.UPGRADES:
-            if upgrade["id"] not in _automation_ids:
-                continue
-            uid       = upgrade["id"]
-            name      = upgrade["name"]
-            desc      = upgrade["description"]
-            cost      = upgrade["lp_cost"]
-            is_unlocked = uid in meta.unlocked_upgrades
-            can_afford  = meta.legacy_points >= cost
-
-            if is_unlocked:
-                self._blit(f"[✓] {name}", self.font_small, C.COLOR_UNLOCK, mx, my)
-                self._blit(f"    {desc}", self.font_small, C.COLOR_TEXT_DISABLED, mx, my + C.LINE_HEIGHT_SMALL)
-                my += C.LINE_HEIGHT_SMALL * 2 + 10
-            else:
-                btn_rect = pygame.Rect(mx, my, 420, C.BUILD_BTN_HEIGHT)
-                lp_label = f"[{cost} LP]  {name} — {desc}"
-                btn = Button(
-                    rect=btn_rect,
-                    label=lp_label,
-                    action=f"buy:{uid}",
-                    enabled=can_afford,
-                    font=self.font_small,
-                )
-                self._menu_buttons.append(btn)
-                btn.draw(self.screen)
-                my += C.BUILD_BTN_HEIGHT + 10
-
-        # ---------------------------------------------------------------
-        # Right: General upgrade shop
-        # ---------------------------------------------------------------
-        rx, ry = 1180, 110
+        rx, ry = 700, 110
         self._blit("UPGRADES", self.font_med, C.COLOR_TEXT_SECONDARY, rx, ry)
         lp_surf = self.font_med.render(f"LP: {meta.legacy_points}", True, C.COLOR_LP)
-        self.screen.blit(lp_surf, (rx + 680 - lp_surf.get_width(), ry))
+        self.screen.blit(lp_surf, (rx + 1160 - lp_surf.get_width(), ry))
         ry += C.LINE_HEIGHT_MED
-        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (rx, ry), (rx + 680, ry))
+        pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (rx, ry), (rx + 1160, ry))
         ry += C.DIVIDER_PADDING
 
         for upgrade in C.UPGRADES:
-            if upgrade["id"] in _automation_ids:
-                continue
             uid      = upgrade["id"]
             name     = upgrade["name"]
             desc     = upgrade["description"]
@@ -1454,7 +1414,7 @@ class Renderer:
                 self._blit(f"    Requires: {req_name}", self.font_small, C.COLOR_TEXT_DISABLED, rx, ry + C.LINE_HEIGHT_SMALL)
                 ry += C.LINE_HEIGHT_SMALL * 2 + 10
             else:
-                btn_rect = pygame.Rect(rx, ry, 680, C.BUILD_BTN_HEIGHT)
+                btn_rect = pygame.Rect(rx, ry, 1160, C.BUILD_BTN_HEIGHT)
                 lp_label = f"[{cost} LP]  {name} — {desc}"
                 btn = Button(
                     rect=btn_rect,
