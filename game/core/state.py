@@ -33,6 +33,7 @@ class GameState:
     gold: float = float(config.STARTING_GOLD)
     stone: float = float(config.STARTING_STONE)
     planks: float = float(config.STARTING_PLANKS)
+    iron: float = float(config.STARTING_IRON)
 
     # -------------------------------------------------------------------
     # Per-tick rate snapshots (updated by engine each tick for display)
@@ -42,6 +43,7 @@ class GameState:
     gold_rate: float = 0.0
     stone_rate: float = 0.0
     planks_rate: float = 0.0
+    iron_rate: float = 0.0
 
     # -------------------------------------------------------------------
     # Entities
@@ -59,6 +61,12 @@ class GameState:
     starvation_events: int = 0
     # Peak colonist count reached during the run
     peak_colonists: int = 0
+
+    # -------------------------------------------------------------------
+    # Military
+    # -------------------------------------------------------------------
+    soldiers: int = 0
+    boss_fights_won: int = 0
 
     # -------------------------------------------------------------------
     # Research
@@ -106,17 +114,21 @@ class GameState:
             "gold": self.gold,
             "stone": self.stone,
             "planks": self.planks,
+            "iron": self.iron,
             "food_rate": self.food_rate,
             "wood_rate": self.wood_rate,
             "gold_rate": self.gold_rate,
             "stone_rate": self.stone_rate,
             "planks_rate": self.planks_rate,
+            "iron_rate": self.iron_rate,
             "colonists": [c.to_dict() for c in self.colonists],
             "buildings": [b.to_dict() for b in self.buildings],
             "next_colonist_id": self.next_colonist_id,
             "next_building_id": self.next_building_id,
             "starvation_events": self.starvation_events,
             "peak_colonists": self.peak_colonists,
+            "soldiers": self.soldiers,
+            "boss_fights_won": self.boss_fights_won,
             "status": self.status.value,
             "paused": self.paused,
             "researched_tech_ids": list(self.researched_tech_ids),
@@ -144,17 +156,21 @@ class GameState:
             gold=d["gold"],
             stone=d.get("stone", 0.0),
             planks=d.get("planks", 0.0),
+            iron=d.get("iron", 0.0),
             food_rate=d.get("food_rate", 0.0),
             wood_rate=d.get("wood_rate", 0.0),
             gold_rate=d.get("gold_rate", 0.0),
             stone_rate=d.get("stone_rate", 0.0),
             planks_rate=d.get("planks_rate", 0.0),
+            iron_rate=d.get("iron_rate", 0.0),
             colonists=[Colonist.from_dict(c) for c in d["colonists"]],
             buildings=[Building.from_dict(b) for b in d["buildings"]],
             next_colonist_id=d["next_colonist_id"],
             next_building_id=d["next_building_id"],
             starvation_events=d.get("starvation_events", 0),
             peak_colonists=d.get("peak_colonists", 0),
+            soldiers=d.get("soldiers", 0),
+            boss_fights_won=d.get("boss_fights_won", 0),
             status=GameStatus(d["status"]),
             paused=d.get("paused", False),
             researched_tech_ids=list(d.get("researched_tech_ids", [])),
@@ -204,3 +220,7 @@ class GameState:
             if b.id == building_id:
                 return b
         return None
+
+    @property
+    def has_barracks(self) -> bool:
+        return any(b.building_type == BuildingType.BARRACKS for b in self.buildings)

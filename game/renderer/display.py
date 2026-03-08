@@ -18,9 +18,11 @@ from game.core.entities import (
     ActionAssignWorker,
     ActionBuildBuilding,
     ActionExploreHex,
+    ActionFightBoss,
     ActionRecruitCitizen,
     ActionResearchTech,
     ActionSetSpeed,
+    ActionTrainSoldier,
     BuildingType,
     GameStatus,
 )
@@ -442,6 +444,7 @@ class Renderer:
         y = self._draw_resource_row("Gold",   state.gold,   state.gold_rate,   C.COLOR_GOLD,   x, y)
         y = self._draw_resource_row("Stone",  state.stone,  state.stone_rate,  C.COLOR_STONE,  x, y)
         y = self._draw_resource_row("Planks", state.planks, state.planks_rate, C.COLOR_PLANKS, x, y)
+        y = self._draw_resource_row("Iron",   state.iron,   state.iron_rate,   C.COLOR_IRON,   x, y)
 
         y += C.SECTION_GAP
         self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
@@ -600,9 +603,31 @@ class Renderer:
         y += C.LINE_HEIGHT_MED
 
         for btype in [BuildingType.FARM, BuildingType.LUMBER_MILL, BuildingType.MARKET,
-                      BuildingType.QUARRY, BuildingType.SAWMILL]:
+                      BuildingType.QUARRY, BuildingType.SAWMILL, BuildingType.IRON_MINE,
+                      BuildingType.BARRACKS]:
             y = self._draw_build_button(state, btype, x, y)
             y += C.BUILD_BTN_GAP
+
+        # Train Soldier button (only when barracks exists)
+        if state.has_barracks:
+            food_cost = C.TRAIN_SOLDIER_COST["food"]
+            iron_cost = C.TRAIN_SOLDIER_COST["iron"]
+            can_train = (state.food >= food_cost and state.iron >= iron_cost
+                         and state.soldiers < C.BARRACKS_MAX_SOLDIERS)
+            train_label = (
+                f"Train Soldier  ({food_cost:.0f} Food, {iron_cost:.0f} Iron)"
+                f"  [{state.soldiers}/{C.BARRACKS_MAX_SOLDIERS}]"
+            )
+            train_btn = Button(
+                rect=pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT),
+                label=train_label,
+                action=ActionTrainSoldier(),
+                enabled=can_train,
+                font=self.font_small,
+            )
+            self._buttons.append(train_btn)
+            train_btn.draw(self.screen)
+            y += C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP
 
         y += C.SECTION_GAP
         self._divider(x, y, C.WINDOW_WIDTH - C.PANEL_PADDING)
@@ -673,11 +698,24 @@ class Renderer:
         return y + C.BUILDING_ROW_HEIGHT
 
     def _draw_build_button(self, state: GameState, btype: BuildingType, x: int, y: int) -> int:
-        existing   = sum(1 for b in state.buildings if b.building_type == btype)
-        cost       = self._build_cost(btype) * (2 ** existing)
-        can_afford = state.wood >= cost
-        label      = f"Build {btype.value}  (cost: {cost:.0f} Wood)"
-        btn_rect   = pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT)
+        existing = sum(1 for b in state.buildings if b.building_type == btype)
+        multiplier = 2 ** existing
+
+        if btype == BuildingType.IRON_MINE:
+            stone_cost = C.IRON_MINE_BUILD_COST.get("stone", 0) * multiplier
+            can_afford = state.stone >= stone_cost
+            label = f"Build {btype.value}  (cost: {stone_cost:.0f} Stone)"
+        elif btype == BuildingType.BARRACKS:
+            wood_cost = C.BARRACKS_BUILD_COST.get("wood", 0) * multiplier
+            iron_cost = C.BARRACKS_BUILD_COST.get("iron", 0) * multiplier
+            can_afford = state.wood >= wood_cost and state.iron >= iron_cost
+            label = f"Build {btype.value}  (cost: {wood_cost:.0f} Wood, {iron_cost:.0f} Iron)"
+        else:
+            cost = self._build_cost(btype) * multiplier
+            can_afford = state.wood >= cost
+            label = f"Build {btype.value}  (cost: {cost:.0f} Wood)"
+
+        btn_rect = pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT)
         btn = Button(rect=btn_rect, label=label, action=ActionBuildBuilding(building_type=btype),
                      enabled=can_afford, font=self.font_small)
         self._buttons.append(btn)
@@ -706,6 +744,7 @@ class Renderer:
             (f"Gold: {state.gold:.0f}",   C.COLOR_GOLD),
             (f"Stone: {state.stone:.0f}", C.COLOR_STONE),
             (f"Planks: {state.planks:.0f}", C.COLOR_PLANKS),
+            (f"Iron: {state.iron:.0f}", C.COLOR_IRON),
         ]:
             surf = self.font_small.render(text, True, color)
             self.screen.blit(surf, (rx, res_y))
@@ -800,8 +839,9 @@ class Renderer:
             has_boss = tile.get("has_boss", False)
             lines.append((terrain.title(), C.COLOR_TEXT_PRIMARY))
             if has_boss:
-                lines.append(("Boss Monster", C.HEX_BOSS_BORDER_COLOR))
-                lines.append(("(Cannot interact yet)", C.COLOR_TEXT_DISABLED))
+                lines.append(("Boss Monster!", C.HEX_BOSS_BORDER_COLOR))
+                win_pct = int(100 * state.soldiers / (state.soldiers + C.BOSS_STRENGTH))
+                lines.append((f"Soldiers: {state.soldiers}  Win chance: {win_pct}%", C.COLOR_TEXT_SECONDARY))
             rewards = C.HEX_TERRAIN_REWARDS.get(terrain, {})
             if rewards:
                 reward_str = "  ".join(f"+{v} {k.title()}" for k, v in rewards.items())
@@ -832,8 +872,11 @@ class Renderer:
 
         pad    = 8
         line_h = C.LINE_HEIGHT_SMALL
-        box_w  = 260
-        box_h  = pad * 2 + len(lines) * line_h
+        box_w  = 280
+        # Determine if we should show a Fight Boss button
+        show_fight_btn = tile.get("has_boss") and tile.get("explored") and terrain != "colony"
+        btn_h = C.BUILD_BTN_HEIGHT + pad if show_fight_btn else 0
+        box_h  = pad * 2 + len(lines) * line_h + btn_h
 
         tx = mouse_pos[0] + 16
         ty = mouse_pos[1] - box_h // 2
@@ -846,6 +889,25 @@ class Renderer:
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, box_rect, width=1, border_radius=4)
         for i, (text, color) in enumerate(lines):
             self._blit(text, self.font_small, color, tx + pad, ty + pad + i * line_h)
+
+        if show_fight_btn:
+            can_fight = (state.has_barracks and state.soldiers >= C.BOSS_MIN_SOLDIERS)
+            if can_fight:
+                fight_label = f"Fight Boss  ({state.soldiers} soldiers)"
+            elif not state.has_barracks:
+                fight_label = "Fight Boss  (need Barracks)"
+            else:
+                fight_label = f"Fight Boss  (need {C.BOSS_MIN_SOLDIERS} soldiers, have {state.soldiers})"
+            btn_y = ty + pad + len(lines) * line_h
+            fight_btn = Button(
+                rect=pygame.Rect(tx + pad, btn_y, box_w - pad * 2, C.BUILD_BTN_HEIGHT),
+                label=fight_label,
+                action=ActionFightBoss(q=q, r=r),
+                enabled=can_fight,
+                font=self.font_small,
+            )
+            fight_btn.draw(self.screen)
+            self._buttons.append(fight_btn)
 
     # ------------------------------------------------------------------
     # Bottom bar
@@ -1383,17 +1445,20 @@ class Renderer:
             BuildingType.MARKET:      C.MARKET_MAX_WORKERS,
             BuildingType.QUARRY:      C.QUARRY_MAX_WORKERS,
             BuildingType.SAWMILL:     C.SAWMILL_MAX_WORKERS,
-        }[btype]
+            BuildingType.IRON_MINE:   C.IRON_MINE_MAX_WORKERS,
+            BuildingType.BARRACKS:    0,
+        }.get(btype, 0)
 
     @staticmethod
     def _build_cost(btype: BuildingType) -> float:
+        """Returns wood-only cost for simple buildings; 0 for multi-resource buildings."""
         return {
             BuildingType.FARM:        C.FARM_BUILD_COST_WOOD,
             BuildingType.LUMBER_MILL: C.LUMBERMILL_BUILD_COST_WOOD,
             BuildingType.MARKET:      C.MARKET_BUILD_COST_WOOD,
             BuildingType.QUARRY:      C.QUARRY_BUILD_COST_WOOD,
             BuildingType.SAWMILL:     C.SAWMILL_BUILD_COST_WOOD,
-        }[btype]
+        }.get(btype, 0.0)
 
     @staticmethod
     def _production_hint(btype: BuildingType, workers: int, state: GameState) -> str:
@@ -1429,6 +1494,13 @@ class Renderer:
             wood    = workers * C.MARKET_WOOD_PER_WORKER_PER_TICK
             planks  = workers * C.MARKET_PLANKS_PER_WORKER_PER_TICK
             return f"+{gold_w:.2f} Gold (-{wood:.2f} Wood) | +{gold_p:.2f} Gold (-{planks:.2f} Planks)"
+        elif btype == BuildingType.IRON_MINE:
+            if workers == 0:
+                return "(no workers)"
+            iron = workers * C.IRON_MINE_PRODUCTION
+            return f"+{iron:.2f} Iron/tick"
+        elif btype == BuildingType.BARRACKS:
+            return f"Soldiers: {state.soldiers}/{C.BARRACKS_MAX_SOLDIERS}"
         return ""
 
     def _draw_research_row(self, state: GameState, tech: dict, x: int, y: int) -> int:

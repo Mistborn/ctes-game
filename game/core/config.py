@@ -236,6 +236,7 @@ COLOR_FOOD = (100, 200, 80)
 COLOR_WOOD = (160, 120, 70)
 COLOR_STONE = (180, 170, 160)
 COLOR_PLANKS = (190, 150, 80)
+COLOR_IRON = (160, 130, 180)
 COLOR_BTN_NORMAL = (55, 45, 32)
 COLOR_BTN_HOVER = (80, 65, 45)
 COLOR_BTN_DISABLED = (35, 30, 22)
@@ -301,6 +302,31 @@ HEX_BOSS_BORDER_COLOR = (200, 40, 40)
 
 # Probability that a non-colony hex has a boss monster (rings 2+ only)
 HEX_BOSS_CHANCE = 0.15
+
+# ---------------------------------------------------------------------------
+# Iron resource
+# ---------------------------------------------------------------------------
+STARTING_IRON = 0
+IRON_CAP      = 9999
+
+# Iron Mine building
+IRON_MINE_BUILD_COST  = {"stone": 30}
+IRON_MINE_MAX_WORKERS = 6
+IRON_MINE_PRODUCTION  = 0.5   # iron per worker per tick
+
+# Barracks building
+BARRACKS_BUILD_COST   = {"wood": 60, "iron": 20}
+BARRACKS_MAX_SOLDIERS = 20
+
+# Soldier training
+TRAIN_SOLDIER_COST = {"food": 10, "iron": 5}
+
+# Boss fight
+BOSS_MIN_SOLDIERS       = 5    # minimum soldiers required to attempt
+BOSS_STRENGTH           = 8    # lower = easier; win_prob = soldiers / (soldiers + BOSS_STRENGTH)
+BOSS_WIN_REWARDS        = {"gold": 100, "stone": 50}
+BOSS_SOLDIERS_LOST_WIN  = 2    # soldiers consumed on victory
+BOSS_SOLDIERS_LOST_LOSE = 5    # soldiers consumed on defeat
 
 # ---------------------------------------------------------------------------
 # Seasons
