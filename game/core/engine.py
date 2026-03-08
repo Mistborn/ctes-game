@@ -689,7 +689,7 @@ def _add_season_log(state: GameState, season: str) -> None:
         "Autumn": ("Warning: Winter approaches — food production will be halved!", "warning"),
         "Winter": ("Winter has begun. Food production is halved.", "winter"),
         "Spring": ("Spring has arrived. Food production is restored.", "spring"),
-        "Summer": ("Summer is here. Food production at full capacity.", "summer"),
+        "Summer": ("Summer is here.", "summer"),
     }
     entry = messages.get(season)
     if entry is None:

@@ -576,7 +576,7 @@ class Renderer:
             for entry in reversed(state.info_log):
                 tick_n, message, msg_type = entry[0], entry[1], entry[2]
                 color = log_colors.get(msg_type, C.COLOR_TEXT_SECONDARY)
-                y_log = self._blit_wrapped(f"[t{tick_n}] {message}", self.font_small, color, x, y_log, log_max_w, C.LINE_HEIGHT_SMALL)
+                y_log = self._blit_wrapped(message, self.font_small, color, x, y_log, log_max_w, C.LINE_HEIGHT_SMALL)
 
         self._log_content_height = y_log + self._log_scroll - log_area_top
         self.screen.set_clip(None)
