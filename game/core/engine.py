@@ -123,6 +123,13 @@ def tick(state: GameState) -> GameState:
 
     state.tick += 1
 
+    # Detect season transitions and add log messages
+    if state.tick > 1:
+        prev_season = get_season(state.tick - 1)
+        curr_season = get_season(state.tick)
+        if curr_season != prev_season:
+            _add_season_log(state, curr_season)
+
     # Snapshot resources before tick for rate calculation
     food_before  = state.food
     wood_before  = state.wood
@@ -221,6 +228,7 @@ def _process_production(state: GameState) -> None:
     tool_mult    = config.RESEARCH_REINFORCED_TOOLS_MULT    if "reinforced_tools" in researched else 1.0
     market_mult  = (config.RESEARCH_TRADE_ROUTES_MARKET_MULT if "trade_routes" in researched else 1.0) * state.market_gold_bonus_mult
     sawmill_mult = config.RESEARCH_STONE_MASONRY_SAWMILL_MULT if "stone_masonry" in researched else 1.0
+    winter_food_mult = config.WINTER_FOOD_PRODUCTION_MULT if _is_winter(state.tick) else 1.0
 
     for building in state.buildings:
         workers = building.workers_assigned
@@ -228,7 +236,7 @@ def _process_production(state: GameState) -> None:
 
         # Passive income (applied regardless of worker count)
         if btype == BuildingType.FARM:
-            state.food += config.FARM_PASSIVE_FOOD_PER_TICK * farm_mult * passive_mult
+            state.food += config.FARM_PASSIVE_FOOD_PER_TICK * farm_mult * passive_mult * winter_food_mult
         elif btype == BuildingType.LUMBER_MILL:
             state.wood += config.LUMBERMILL_PASSIVE_WOOD_PER_TICK * tool_mult * passive_mult
         elif btype == BuildingType.QUARRY:
@@ -239,7 +247,7 @@ def _process_production(state: GameState) -> None:
             continue
 
         if btype == BuildingType.FARM:
-            state.food += workers * config.FARM_FOOD_PER_WORKER_PER_TICK * farm_mult
+            state.food += workers * config.FARM_FOOD_PER_WORKER_PER_TICK * farm_mult * winter_food_mult
 
         elif btype == BuildingType.LUMBER_MILL:
             state.wood += workers * config.LUMBERMILL_WOOD_PER_WORKER_PER_TICK * tool_mult
@@ -300,11 +308,9 @@ def _process_consumption(state: GameState) -> None:
     """
     Each colonist consumes food. If food runs out colonists starve and die
     (removed from the roster in the order they were added).
-    Winter doubles food consumption.
+    Winter halves food production instead of increasing consumption.
     """
     food_per_colonist = config.FOOD_PER_COLONIST_PER_TICK * state.food_consumption_mult
-    if _is_winter(state.tick):
-        food_per_colonist *= config.WINTER_FOOD_MULT
     food_needed = state.colonist_count * food_per_colonist
 
     if state.food >= food_needed:
@@ -587,6 +593,22 @@ def _check_endgame(state: GameState) -> None:
 # ---------------------------------------------------------------------------
 # Season helpers
 # ---------------------------------------------------------------------------
+
+def _add_season_log(state: GameState, season: str) -> None:
+    """Append a seasonal event message to state.info_log."""
+    messages = {
+        "Autumn": ("Warning: Winter approaches — food production will be halved!", "warning"),
+        "Winter": ("Winter has begun. Food production is halved.", "winter"),
+        "Spring": ("Spring has arrived. Food production is restored.", "spring"),
+        "Summer": ("Summer is here. Food production at full capacity.", "summer"),
+    }
+    entry = messages.get(season)
+    if entry is None:
+        return
+    state.info_log.append([state.tick, entry[0], entry[1]])
+    if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+        state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES:]
+
 
 def _is_winter(tick: int) -> bool:
     return (tick % config.SEASON_CYCLE_TICKS) >= (config.SEASON_CYCLE_TICKS - config.WINTER_LENGTH_TICKS)
