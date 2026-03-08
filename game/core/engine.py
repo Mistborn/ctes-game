@@ -500,10 +500,15 @@ def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
         _initialize_hex_map(state)
 
 
+def _colonist_recruit_cost(state: GameState) -> int:
+    return round(config.RECRUIT_CITIZEN_FOOD_COST * (config.COLONIST_COST_SCALE ** state.colonist_count))
+
+
 def _handle_recruit_citizen(state: GameState) -> None:
-    if state.food < config.RECRUIT_CITIZEN_FOOD_COST:
+    cost = _colonist_recruit_cost(state)
+    if state.food < cost:
         return
-    state.food -= config.RECRUIT_CITIZEN_FOOD_COST
+    state.food -= cost
     colonist = _add_colonist(state)
     if state.colonist_count > state.peak_colonists:
         state.peak_colonists = state.colonist_count

@@ -44,8 +44,10 @@ FOOD_PER_COLONIST_PER_TICK = 0.5
 # ---------------------------------------------------------------------------
 # Colonist Recruitment
 # ---------------------------------------------------------------------------
-# Food cost to manually recruit a citizen via the button
+# Food cost to manually recruit a citizen via the button (base, for the first colonist)
 RECRUIT_CITIZEN_FOOD_COST = 100
+# Each additional colonist costs this much more than the previous one
+COLONIST_COST_SCALE = 1.1
 
 # ---------------------------------------------------------------------------
 # Building Production Rates (per worker per tick)

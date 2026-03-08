@@ -478,10 +478,11 @@ class Renderer:
             self.font_small, C.COLOR_TEXT_SECONDARY, x, y,
         )
         y += C.LINE_HEIGHT_SMALL
-        can_recruit = state.food >= C.RECRUIT_CITIZEN_FOOD_COST
+        recruit_cost = round(C.RECRUIT_CITIZEN_FOOD_COST * (C.COLONIST_COST_SCALE ** state.colonist_count))
+        can_recruit = state.food >= recruit_cost
         recruit_btn = Button(
             rect=pygame.Rect(x, y, C.LEFT_PANEL_WIDTH - x * 2, C.BUILD_BTN_HEIGHT),
-            label=f"Recruit Citizen  (cost: {C.RECRUIT_CITIZEN_FOOD_COST} Food)",
+            label=f"Recruit Citizen  (cost: {recruit_cost} Food)",
             action=ActionRecruitCitizen(),
             enabled=can_recruit,
             font=self.font_small,
