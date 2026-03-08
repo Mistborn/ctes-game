@@ -180,6 +180,12 @@ class Renderer:
         self._right_panel_scroll: int = 0
         self._right_panel_content_height: int = 0
 
+        # Info log scroll state
+        self._log_scroll: int = 0
+        self._log_content_height: int = 0
+        self._log_area_top: int = 0
+        self._log_area_bottom: int = 0
+
         # World map view state
         self._current_view: str = "colony"  # "colony" | "world_map"
         self._hex_scroll_offset: List[int] = [0, 0]
@@ -197,6 +203,8 @@ class Renderer:
         self._buttons = []
         self._menu_buttons = []
         self._right_panel_scroll = 0
+        self._log_scroll = 0
+        self._log_content_height = 0
         self._current_view = "colony"
         self._hex_scroll_offset = [0, 0]
         self._hex_drag_start = None
@@ -359,11 +367,20 @@ class Renderer:
                 panel_rect = pygame.Rect(
                     panel_x, 0, C.RIGHT_PANEL_WIDTH, C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
                 )
-                if panel_rect.collidepoint(pygame.mouse.get_pos()):
+                log_rect = pygame.Rect(
+                    0, self._log_area_top, C.LEFT_PANEL_WIDTH, self._log_area_bottom - self._log_area_top
+                )
+                mx, my = pygame.mouse.get_pos()
+                if panel_rect.collidepoint(mx, my):
                     self._right_panel_scroll -= event.y * 30
                     panel_height = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
                     max_scroll = max(0, self._right_panel_content_height - panel_height)
                     self._right_panel_scroll = max(0, min(self._right_panel_scroll, max_scroll))
+                elif log_rect.collidepoint(mx, my):
+                    self._log_scroll -= event.y * 30
+                    log_area_h = self._log_area_bottom - self._log_area_top
+                    max_log_scroll = max(0, self._log_content_height - log_area_h)
+                    self._log_scroll = max(0, min(self._log_scroll, max_log_scroll))
 
         return actions
 
@@ -481,7 +498,7 @@ class Renderer:
             self.font_small, C.COLOR_TEXT_SECONDARY, x, y,
         )
         y += C.LINE_HEIGHT_SMALL
-        recruit_cost = round(C.RECRUIT_CITIZEN_FOOD_COST * (C.COLONIST_COST_SCALE ** state.colonist_count))
+        recruit_cost = round(C.RECRUIT_CITIZEN_FOOD_COST * (C.COLONIST_COST_SCALE ** (state.colonist_count - C.STARTING_COLONISTS)))
         can_recruit = state.food >= recruit_cost
         recruit_btn = Button(
             rect=pygame.Rect(x, y, C.LEFT_PANEL_WIDTH - x * 2, C.BUILD_BTN_HEIGHT),
@@ -493,6 +510,27 @@ class Renderer:
         recruit_btn.draw(self.screen)
         self._buttons.append(recruit_btn)
         y += C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP
+
+        # Train Soldier button (only when barracks exists)
+        if state.has_barracks:
+            food_cost = C.TRAIN_SOLDIER_COST["food"]
+            iron_cost = C.TRAIN_SOLDIER_COST["iron"]
+            can_train = (state.food >= food_cost and state.iron >= iron_cost
+                         and state.soldiers < C.BARRACKS_MAX_SOLDIERS)
+            train_label = (
+                f"Train Soldier  ({food_cost:.0f} Food, {iron_cost:.0f} Iron)"
+                f"  [{state.soldiers}/{C.BARRACKS_MAX_SOLDIERS}]"
+            )
+            train_btn = Button(
+                rect=pygame.Rect(x, y, C.LEFT_PANEL_WIDTH - x * 2, C.BUILD_BTN_HEIGHT),
+                label=train_label,
+                action=ActionTrainSoldier(),
+                enabled=can_train,
+                font=self.font_small,
+            )
+            train_btn.draw(self.screen)
+            self._buttons.append(train_btn)
+            y += C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP
 
         # Season
         y += C.SECTION_GAP
@@ -513,20 +551,44 @@ class Renderer:
         self._blit("INFO LOG", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
         y += C.LINE_HEIGHT_MED
 
+        panel_bottom = C.WINDOW_HEIGHT - C.BOTTOM_BAR_HEIGHT
+        scrollbar_w = 8
+        log_max_w = C.LEFT_PANEL_WIDTH - x - C.PANEL_PADDING - scrollbar_w - 4
+        log_area_top = y
+        log_area_h = panel_bottom - log_area_top - C.PANEL_PADDING
+        self._log_area_top = log_area_top
+        self._log_area_bottom = panel_bottom - C.PANEL_PADDING
+
+        log_clip = pygame.Rect(0, log_area_top, C.LEFT_PANEL_WIDTH, log_area_h)
+        self.screen.set_clip(log_clip)
+
         log_colors = {
             "warning": (220, 160, 60),
             "winter":  C.COLOR_WINTER,
             "spring":  C.COLOR_SEASON_NORMAL,
             "summer":  (160, 200, 80),
         }
+        y_log = y - self._log_scroll
         if not state.info_log:
-            self._blit("No events yet.", self.font_small, C.COLOR_TEXT_DISABLED, x, y)
+            self._blit("No events yet.", self.font_small, C.COLOR_TEXT_DISABLED, x, y_log)
+            y_log += C.LINE_HEIGHT_SMALL
         else:
             for entry in reversed(state.info_log):
                 tick_n, message, msg_type = entry[0], entry[1], entry[2]
                 color = log_colors.get(msg_type, C.COLOR_TEXT_SECONDARY)
-                self._blit(f"[t{tick_n}] {message}", self.font_small, color, x, y)
-                y += C.LINE_HEIGHT_SMALL
+                y_log = self._blit_wrapped(f"[t{tick_n}] {message}", self.font_small, color, x, y_log, log_max_w, C.LINE_HEIGHT_SMALL)
+
+        self._log_content_height = y_log + self._log_scroll - log_area_top
+        self.screen.set_clip(None)
+
+        # Scrollbar for info log
+        if self._log_content_height > log_area_h:
+            track_rect = pygame.Rect(C.LEFT_PANEL_WIDTH - scrollbar_w - 3, log_area_top + 2, scrollbar_w, log_area_h - 4)
+            pygame.draw.rect(self.screen, C.COLOR_BTN_NORMAL, track_rect, border_radius=4)
+            thumb_h = max(20, int(log_area_h * log_area_h / self._log_content_height))
+            thumb_y = int(self._log_scroll / self._log_content_height * log_area_h)
+            thumb_rect = pygame.Rect(C.LEFT_PANEL_WIDTH - scrollbar_w - 3, log_area_top + 2 + thumb_y, scrollbar_w, thumb_h)
+            pygame.draw.rect(self.screen, C.COLOR_TEXT_SECONDARY, thumb_rect, border_radius=4)
 
     def _draw_resource_row(
         self, label: str, value: float, rate: float, color: tuple, x: int, y: int
@@ -631,27 +693,6 @@ class Renderer:
                       BuildingType.BARRACKS]:
             y = self._draw_build_button(state, btype, x, y)
             y += C.BUILD_BTN_GAP
-
-        # Train Soldier button (only when barracks exists)
-        if state.has_barracks:
-            food_cost = C.TRAIN_SOLDIER_COST["food"]
-            iron_cost = C.TRAIN_SOLDIER_COST["iron"]
-            can_train = (state.food >= food_cost and state.iron >= iron_cost
-                         and state.soldiers < C.BARRACKS_MAX_SOLDIERS)
-            train_label = (
-                f"Train Soldier  ({food_cost:.0f} Food, {iron_cost:.0f} Iron)"
-                f"  [{state.soldiers}/{C.BARRACKS_MAX_SOLDIERS}]"
-            )
-            train_btn = Button(
-                rect=pygame.Rect(x, y, C.RIGHT_PANEL_WIDTH - C.PANEL_PADDING * 2, C.BUILD_BTN_HEIGHT),
-                label=train_label,
-                action=ActionTrainSoldier(),
-                enabled=can_train,
-                font=self.font_small,
-            )
-            self._buttons.append(train_btn)
-            train_btn.draw(self.screen)
-            y += C.BUILD_BTN_HEIGHT + C.BUILD_BTN_GAP
 
         y += C.SECTION_GAP
         self._divider(x, y, C.WINDOW_WIDTH - C.PANEL_PADDING)
@@ -1457,6 +1498,24 @@ class Renderer:
 
     def _blit(self, text: str, font: pygame.font.Font, color: tuple, x: int, y: int) -> None:
         self.screen.blit(font.render(text, True, color), (x, y))
+
+    def _blit_wrapped(self, text: str, font: pygame.font.Font, color: tuple, x: int, y: int, max_width: int, line_height: int) -> int:
+        """Render text wrapping within max_width. Returns the new y after all lines."""
+        words = text.split(" ")
+        line = ""
+        for word in words:
+            test = f"{line} {word}".strip() if line else word
+            if font.size(test)[0] <= max_width:
+                line = test
+            else:
+                if line:
+                    self.screen.blit(font.render(line, True, color), (x, y))
+                    y += line_height
+                line = word
+        if line:
+            self.screen.blit(font.render(line, True, color), (x, y))
+            y += line_height
+        return y
 
     def _divider(self, x1: int, y: int, x2: int) -> None:
         pygame.draw.line(self.screen, C.COLOR_PANEL_BORDER, (x1, y), (x2, y))

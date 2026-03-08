@@ -529,7 +529,8 @@ def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
 
 
 def _colonist_recruit_cost(state: GameState) -> int:
-    return round(config.RECRUIT_CITIZEN_FOOD_COST * (config.COLONIST_COST_SCALE ** state.colonist_count))
+    extra = state.colonist_count - config.STARTING_COLONISTS
+    return round(config.RECRUIT_CITIZEN_FOOD_COST * (config.COLONIST_COST_SCALE ** extra))
 
 
 def _handle_recruit_citizen(state: GameState) -> None:
