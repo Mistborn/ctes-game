@@ -156,7 +156,7 @@ class Renderer:
         pygame.init()
         pygame.display.set_caption(C.WINDOW_TITLE)
         self.screen = pygame.display.set_mode(
-            (C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.FULLSCREEN
+            (C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.NOFRAME
         )
         self.clock = pygame.time.Clock()
 
