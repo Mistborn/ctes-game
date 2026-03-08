@@ -2,8 +2,10 @@
 main.py — Entry point for Kingdoms of the Forgotten.
 
 Normal mode:
-    python main.py                  # shows start screen (New Game / Continue)
-    python main.py --new-game       # skip start screen, begin a fresh game
+    python main.py                                              # shows start screen (New Game / Continue)
+    python main.py --new-game                                   # skip start screen, begin a fresh game
+    python main.py --load saves/scenario_pre_boss.json          # load save directly
+    python main.py --load saves/scenario_pre_boss.json --view world_map  # load and open world map
 
 Headless / agent mode (no display, runs balance report):
     python main.py --headless
@@ -53,7 +55,13 @@ def main() -> None:
         "--load",
         metavar="PATH",
         default=None,
-        help="(headless) Load a save file and run strategies from that state.",
+        help="Load a save file directly (interactive or headless).",
+    )
+    parser.add_argument(
+        "--view",
+        choices=["colony", "world_map"],
+        default=None,
+        help="Initial view after loading (default: colony).",
     )
     parser.add_argument(
         "--llm-agent",
@@ -156,12 +164,18 @@ def main() -> None:
     renderer = Renderer()
 
     first_run = True
+    apply_initial_view = args.view
 
     while True:
         # Start-screen only on the very first run; subsequent runs skip it
         if first_run:
             if args.new_game:
                 state = engine.new_game(meta)
+            elif args.load:
+                from pathlib import Path
+                from game.core.save import load_game
+                state = load_game(Path(args.load))
+                print(f"Loaded: {args.load} (tick {state.tick})")
             else:
                 saves = game_save.list_saves()
                 state = renderer.show_start_screen(saves, meta=meta)
@@ -170,6 +184,9 @@ def main() -> None:
             state = engine.new_game(meta)
 
         renderer.reset_for_new_run()
+        if apply_initial_view:
+            renderer._current_view = apply_initial_view
+            apply_initial_view = None
         last_autosave_tick: int = state.tick
         start_next_run = False
 
