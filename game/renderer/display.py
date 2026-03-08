@@ -297,14 +297,18 @@ class Renderer:
                 sys.exit()
 
             if event.type == pygame.KEYDOWN:
-                # Escape → open/close escape menu (only while playing)
-                if event.key == pygame.K_ESCAPE and state.status == GameStatus.PLAYING:
+                # Escape → open/close escape menu (while playing OR on endgame overlay)
+                if event.key == pygame.K_ESCAPE and state.status in (
+                    GameStatus.PLAYING, GameStatus.WIN, GameStatus.LOSE
+                ):
                     if self._show_escape_menu:
                         self._show_escape_menu = False
-                        state.paused = self._was_paused_before_menu
+                        if state.status == GameStatus.PLAYING:
+                            state.paused = self._was_paused_before_menu
                     else:
-                        self._was_paused_before_menu = state.paused
-                        state.paused = True
+                        if state.status == GameStatus.PLAYING:
+                            self._was_paused_before_menu = state.paused
+                            state.paused = True
                         self._show_escape_menu = True
 
                 # Space → pause / unpause (not while escape menu is open)
@@ -324,7 +328,8 @@ class Renderer:
                     result = btn.handle_event(event)
                     if result == "continue":
                         self._show_escape_menu = False
-                        state.paused = self._was_paused_before_menu
+                        if state.status == GameStatus.PLAYING:
+                            state.paused = self._was_paused_before_menu
                     elif result in ("save_and_exit", "exit_no_save"):
                         actions.append(result)
 
@@ -434,6 +439,8 @@ class Renderer:
 
         if state.status != GameStatus.PLAYING:
             self._draw_endgame_overlay(state)
+            if self._show_escape_menu:
+                self._draw_escape_menu(show_save=False)
         elif self._show_escape_menu:
             self._draw_escape_menu()
         elif state.paused:
@@ -870,7 +877,7 @@ class Renderer:
 
             # Hover highlight
             if hovered_hex == (q, r) and (explored or is_explorable):
-                color = tuple(min(255, c + 40) for c in color)
+                color = tuple(min(255, c + 20) for c in color)
 
             sprite = self._hex_sprites.get(terrain) if explored else None
             if sprite:
@@ -879,7 +886,7 @@ class Renderer:
                 if hovered_hex == (q, r):
                     tinted = sprite.copy()
                     overlay = pygame.Surface(sprite.get_size(), pygame.SRCALPHA)
-                    overlay.fill((255, 255, 255, 50))
+                    overlay.fill((30, 30, 30, 0))
                     tinted.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
                     self.screen.blit(tinted, (blit_x, blit_y))
                 else:
@@ -889,9 +896,8 @@ class Renderer:
 
             has_boss = tile.get("has_boss", False)
             if explored and has_boss:
-                border_color = C.HEX_BOSS_BORDER_COLOR
-                pygame.draw.polygon(self.screen, border_color, vertices, 2)
-            else:
+                pygame.draw.polygon(self.screen, C.HEX_BOSS_BORDER_COLOR, vertices, 2)
+            elif not explored:
                 border_color = C.HEX_FOG_BORDER_COLOR if is_explorable else C.COLOR_PANEL_BORDER
                 pygame.draw.polygon(self.screen, border_color, vertices, 1)
 
@@ -1121,28 +1127,26 @@ class Renderer:
     # Escape menu overlay
     # ------------------------------------------------------------------
 
-    def _draw_escape_menu(self) -> None:
+    def _draw_escape_menu(self, show_save: bool = True) -> None:
         overlay = pygame.Surface((C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 140))
         self.screen.blit(overlay, (0, 0))
 
         cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
 
-        # Box — tall enough for 3 buttons
         btn_w, btn_h = 300, 52
         gap = 16
+        num_btns = 3 if show_save else 2
         box_w  = btn_w + 80
-        box_h  = 60 + 3 * btn_h + 2 * gap + 50  # title + buttons + hint
+        box_h  = 60 + num_btns * btn_h + (num_btns - 1) * gap + 50
         box_top = cy - box_h // 2
         box_rect = pygame.Rect(cx - box_w // 2, box_top, box_w, box_h)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, box_rect, border_radius=8)
         pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, box_rect, width=2, border_radius=8)
 
-        # Title
         title_surf = self.font_large.render("MENU", True, C.COLOR_TEXT_PRIMARY)
         self.screen.blit(title_surf, title_surf.get_rect(center=(cx, box_top + 28)))
 
-        # Buttons — stacked vertically
         btn_x   = cx - btn_w // 2
         first_y = box_top + 60
 
@@ -1152,22 +1156,34 @@ class Renderer:
             action="continue",
             font=self.font_med,
         )
-        btn_save_exit = Button(
-            rect=pygame.Rect(btn_x, first_y + btn_h + gap, btn_w, btn_h),
-            label="Save & Exit",
-            action="save_and_exit",
-            font=self.font_med,
-        )
-        btn_exit = Button(
-            rect=pygame.Rect(btn_x, first_y + 2 * (btn_h + gap), btn_w, btn_h),
-            label="Exit without saving",
-            action="exit_no_save",
-            font=self.font_med,
-        )
-        self._menu_buttons = [btn_continue, btn_save_exit, btn_exit]
-        btn_continue.draw(self.screen)
-        btn_save_exit.draw(self.screen)
-        btn_exit.draw(self.screen)
+        buttons = [btn_continue]
+
+        if show_save:
+            btn_save_exit = Button(
+                rect=pygame.Rect(btn_x, first_y + btn_h + gap, btn_w, btn_h),
+                label="Save & Exit",
+                action="save_and_exit",
+                font=self.font_med,
+            )
+            btn_exit = Button(
+                rect=pygame.Rect(btn_x, first_y + 2 * (btn_h + gap), btn_w, btn_h),
+                label="Exit without saving",
+                action="exit_no_save",
+                font=self.font_med,
+            )
+            buttons += [btn_save_exit, btn_exit]
+        else:
+            btn_exit = Button(
+                rect=pygame.Rect(btn_x, first_y + btn_h + gap, btn_w, btn_h),
+                label="Exit without saving",
+                action="exit_no_save",
+                font=self.font_med,
+            )
+            buttons.append(btn_exit)
+
+        self._menu_buttons = buttons
+        for btn in buttons:
+            btn.draw(self.screen)
 
         hint_surf = self.font_small.render("ESC to resume", True, C.COLOR_TEXT_DISABLED)
         self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, box_top + box_h - 18)))
@@ -1356,33 +1372,96 @@ class Renderer:
     # Between-runs screen — blocking mini-loop
     # ------------------------------------------------------------------
 
-    def show_between_runs_screen(self, meta, state: GameState, lp_earned: int) -> None:
+    def show_between_runs_screen(self, meta, state: GameState, lp_earned: int) -> bool:
         """
-        Show run summary + upgrade shop. Blocks until the player clicks
-        "Start Next Run". Directly mutates meta for upgrade purchases.
+        Show run summary + upgrade shop. Blocks until the player commits or exits.
+        Returns True if "Start Next Run" was clicked (meta already saved),
+        False if the player exited without saving.
         """
+        show_escape_menu = False
+        escape_buttons: List[Any] = []
+
         while True:
             self.clock.tick(C.TARGET_FPS)
 
-            # Draw first so buttons exist when we process events next frame
+            # Draw — populates self._menu_buttons with main-screen buttons
             self._menu_buttons = []
             self._draw_between_runs_screen(meta, state, lp_earned)
+
+            # Draw escape menu on top if open, building its own button list
+            if show_escape_menu:
+                escape_buttons = self._draw_between_runs_escape_menu()
+            else:
+                escape_buttons = []
+
             pygame.display.flip()
 
-            # Process events against the buttons built during this draw
+            # Process events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
 
-                for btn in self._menu_buttons:
-                    result = btn.handle_event(event)
-                    if result == "start_next_run":
-                        return
-                    elif isinstance(result, str) and result.startswith("buy:"):
-                        upgrade_id = result[4:]
-                        meta.buy_upgrade(upgrade_id)
-                        meta.save()
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    show_escape_menu = not show_escape_menu
+
+                if show_escape_menu:
+                    for btn in escape_buttons:
+                        result = btn.handle_event(event)
+                        if result == "continue":
+                            show_escape_menu = False
+                        elif result == "save_and_exit":
+                            meta.save()
+                            pygame.quit()
+                            sys.exit()
+                        elif result == "exit_no_save":
+                            return False
+                else:
+                    for btn in self._menu_buttons:
+                        result = btn.handle_event(event)
+                        if result == "start_next_run":
+                            meta.save()
+                            return True
+                        elif isinstance(result, str) and result.startswith("buy:"):
+                            upgrade_id = result[4:]
+                            meta.buy_upgrade(upgrade_id)
+
+    def _draw_between_runs_escape_menu(self) -> "List[Any]":
+        """Draw the escape menu overlay for the between-runs screen; return its buttons."""
+        overlay = pygame.Surface((C.WINDOW_WIDTH, C.WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 140))
+        self.screen.blit(overlay, (0, 0))
+
+        cx, cy = C.WINDOW_WIDTH // 2, C.WINDOW_HEIGHT // 2
+        btn_w, btn_h = 300, 52
+        gap = 16
+        box_w = btn_w + 80
+        box_h = 60 + 3 * btn_h + 2 * gap + 50
+        box_top = cy - box_h // 2
+        box_rect = pygame.Rect(cx - box_w // 2, box_top, box_w, box_h)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BG, box_rect, border_radius=8)
+        pygame.draw.rect(self.screen, C.COLOR_PANEL_BORDER, box_rect, width=2, border_radius=8)
+
+        title_surf = self.font_large.render("MENU", True, C.COLOR_TEXT_PRIMARY)
+        self.screen.blit(title_surf, title_surf.get_rect(center=(cx, box_top + 28)))
+
+        btn_x = cx - btn_w // 2
+        first_y = box_top + 60
+        buttons = [
+            Button(rect=pygame.Rect(btn_x, first_y, btn_w, btn_h),
+                   label="Continue", action="continue", font=self.font_med),
+            Button(rect=pygame.Rect(btn_x, first_y + btn_h + gap, btn_w, btn_h),
+                   label="Save & Exit", action="save_and_exit", font=self.font_med),
+            Button(rect=pygame.Rect(btn_x, first_y + 2 * (btn_h + gap), btn_w, btn_h),
+                   label="Exit without saving", action="exit_no_save", font=self.font_med),
+        ]
+        for btn in buttons:
+            btn.draw(self.screen)
+
+        hint_surf = self.font_small.render("ESC to resume", True, C.COLOR_TEXT_DISABLED)
+        self.screen.blit(hint_surf, hint_surf.get_rect(center=(cx, box_top + box_h - 18)))
+
+        return buttons
 
     def _draw_between_runs_screen(self, meta, state: GameState, lp_earned: int) -> None:
         """Render the between-runs summary and upgrade shop."""

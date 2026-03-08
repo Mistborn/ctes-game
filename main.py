@@ -237,10 +237,14 @@ def main() -> None:
 
         # ---------------------------------------------------------------
         # Run ended — update meta, show between-runs screen
+        # meta.save() is deferred: show_between_runs_screen saves on commit,
+        # or returns False if the player exits without saving.
         # ---------------------------------------------------------------
         lp_earned = meta.end_run(state)
-        meta.save()
-        renderer.show_between_runs_screen(meta, state, lp_earned)
+        committed = renderer.show_between_runs_screen(meta, state, lp_earned)
+        if not committed:
+            pygame.quit()
+            sys.exit()
         meta.run_number += 1
         meta.save()
 
