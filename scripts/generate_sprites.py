@@ -54,37 +54,37 @@ DEFAULT_TERRAIN_PROMPTS: dict[str, str] = {
     "plains": (
         "Top-down aerial view of lush green meadow with wildflowers and short grass, "
         "rolling farmland, soft morning light, fantasy map tile art style, "
-        "vivid saturated colors, no people, no text, no border, no frame, no vignette, square crop"
+        "vivid saturated colors, tileable texture, seamless edges, full bleed to corners, square crop"
     ),
     "forest": (
         "Top-down aerial view of dense dark-green pine and oak forest canopy, "
         "deep shadows between treetops, ancient woodland, fantasy map tile art style, "
-        "rich deep greens, no text, no border, no frame, no vignette, square crop"
+        "rich deep greens, tileable texture, seamless edges, full bleed to corners, square crop"
     ),
     "hills": (
         "Top-down aerial view of rolling brown and tan hills with rocky outcroppings, "
         "sparse dry grass, warm earthy tones, fantasy map tile art style, "
-        "no text, no border, no frame, no vignette, square crop"
+        "tileable texture, seamless edges, full bleed to corners, square crop"
     ),
     "mountains": (
         "Top-down aerial view of jagged grey mountain peaks with snow caps, "
         "dramatic rocky terrain, silver and slate blue tones, fantasy map tile art style, "
-        "no text, no border, no frame, no vignette, square crop"
+        "tileable texture, seamless edges, full bleed to corners, square crop"
     ),
     "swamp": (
         "Top-down aerial view of murky swamp with dark water, moss-covered trees, "
         "lily pads, muddy banks, dark teal and olive green tones, eerie atmosphere, "
-        "fantasy map tile art style, no text, no border, no frame, no vignette, square crop"
+        "fantasy map tile art style, tileable texture, seamless edges, full bleed to corners, square crop"
     ),
     "ruins": (
         "Top-down aerial view of ancient stone ruins overgrown with vines, "
         "crumbling walls and columns, weathered brown and grey stones, "
-        "mysterious atmosphere, fantasy map tile art style, no text, no border, no frame, no vignette, square crop"
+        "mysterious atmosphere, fantasy map tile art style, tileable texture, seamless edges, full bleed to corners, square crop"
     ),
     "colony": (
         "Top-down aerial view of a small medieval settlement, thatched roof cottages, "
         "cobblestone paths, town square with market stalls, warm golden tones, "
-        "fantasy map tile art style, no text, no border, no frame, no vignette, square crop"
+        "fantasy map tile art style, tileable texture, seamless edges, full bleed to corners, square crop"
     ),
 }
 

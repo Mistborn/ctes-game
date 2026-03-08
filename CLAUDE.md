@@ -34,6 +34,10 @@ Then read `screenshot.png` in the repo root to view it.
 powershell.exe -Command "Stop-Process -Name python -Force"
 ```
 
+## Sprite workflow
+
+After generating fresh sprite(s), verify by launching the game to the world map (see "Load pre-boss save on world map" above), take a screenshot, and ask the user to check the look.
+
 ## Environment notes
 
 - Git identity: name="Vlad Dolezal", email="4179152+Mistborn@users.noreply.github.com"
