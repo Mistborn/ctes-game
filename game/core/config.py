@@ -44,8 +44,10 @@ FOOD_PER_COLONIST_PER_TICK = 0.5
 # ---------------------------------------------------------------------------
 # Colonist Recruitment
 # ---------------------------------------------------------------------------
-# Food cost to manually recruit a citizen via the button
+# Food cost to manually recruit a citizen via the button (base, for the first colonist)
 RECRUIT_CITIZEN_FOOD_COST = 100
+# Each additional colonist costs this much more than the previous one
+COLONIST_COST_SCALE = 1.1
 
 # ---------------------------------------------------------------------------
 # Building Production Rates (per worker per tick)
@@ -356,7 +358,10 @@ BOSS_LP_REWARD = 1
 # ---------------------------------------------------------------------------
 SEASON_CYCLE_TICKS = 400
 WINTER_LENGTH_TICKS = 60
-WINTER_FOOD_MULT = 2.0
+# In winter, farms produce food at this fraction of normal (0.5 = half)
+WINTER_FOOD_PRODUCTION_MULT = 0.5
+# Maximum number of entries kept in the info log
+INFO_LOG_MAX_ENTRIES = 8
 
 # ---------------------------------------------------------------------------
 # Legacy Points

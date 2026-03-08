@@ -481,10 +481,11 @@ class Renderer:
             self.font_small, C.COLOR_TEXT_SECONDARY, x, y,
         )
         y += C.LINE_HEIGHT_SMALL
-        can_recruit = state.food >= C.RECRUIT_CITIZEN_FOOD_COST
+        recruit_cost = round(C.RECRUIT_CITIZEN_FOOD_COST * (C.COLONIST_COST_SCALE ** state.colonist_count))
+        can_recruit = state.food >= recruit_cost
         recruit_btn = Button(
             rect=pygame.Rect(x, y, C.LEFT_PANEL_WIDTH - x * 2, C.BUILD_BTN_HEIGHT),
-            label=f"Recruit Citizen  (cost: {C.RECRUIT_CITIZEN_FOOD_COST} Food)",
+            label=f"Recruit Citizen  (cost: {recruit_cost} Food)",
             action=ActionRecruitCitizen(),
             enabled=can_recruit,
             font=self.font_small,
@@ -501,8 +502,31 @@ class Renderer:
         season = get_season(state.tick)
         season_color = C.COLOR_WINTER if season == "Winter" else C.COLOR_SEASON_NORMAL
         is_winter = season == "Winter"
-        food_mult_str = f" (food ×{C.WINTER_FOOD_MULT:.0f})" if is_winter else ""
+        food_mult_str = " (food prod. ×½)" if is_winter else ""
         self._blit(f"Season: {season}{food_mult_str}", self.font_small, season_color, x, y)
+        y += C.LINE_HEIGHT_SMALL
+
+        # Info log
+        y += C.SECTION_GAP
+        self._divider(x, y, C.LEFT_PANEL_WIDTH - x)
+        y += C.DIVIDER_PADDING
+        self._blit("INFO LOG", self.font_med, C.COLOR_TEXT_SECONDARY, x, y)
+        y += C.LINE_HEIGHT_MED
+
+        log_colors = {
+            "warning": (220, 160, 60),
+            "winter":  C.COLOR_WINTER,
+            "spring":  C.COLOR_SEASON_NORMAL,
+            "summer":  (160, 200, 80),
+        }
+        if not state.info_log:
+            self._blit("No events yet.", self.font_small, C.COLOR_TEXT_DISABLED, x, y)
+        else:
+            for entry in reversed(state.info_log):
+                tick_n, message, msg_type = entry[0], entry[1], entry[2]
+                color = log_colors.get(msg_type, C.COLOR_TEXT_SECONDARY)
+                self._blit(f"[t{tick_n}] {message}", self.font_small, color, x, y)
+                y += C.LINE_HEIGHT_SMALL
 
     def _draw_resource_row(
         self, label: str, value: float, rate: float, color: tuple, x: int, y: int
