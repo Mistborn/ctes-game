@@ -121,6 +121,10 @@ class MetaState:
                 lp += config.BOSS_LP_REWARD
                 self.boss_lp_awarded_rings.append(ring)
 
+        # Curse bonus: +1 LP per active curse on win
+        if state.status == GameStatus.WIN:
+            lp += len(state.active_curses) * config.CURSE_LP_BONUS_PER_CURSE
+
         self.legacy_points += lp
         self.total_runs += 1
         if state.status == GameStatus.WIN:

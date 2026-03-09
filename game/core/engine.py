@@ -246,7 +246,12 @@ def _process_production(state: GameState) -> None:
         config.RESEARCH_TRADE_ROUTES_MARKET_MULT if "trade_routes" in researched else 1.0
     ) * state.market_gold_bonus_mult
     sawmill_mult = config.RESEARCH_STONE_MASONRY_SAWMILL_MULT if "stone_masonry" in researched else 1.0
-    winter_food_mult = config.WINTER_FOOD_PRODUCTION_MULT if _is_winter(state.tick) else 1.0
+    winter_food_mult = config.WINTER_FOOD_PRODUCTION_MULT if _is_winter_for_state(state) else 1.0
+
+    # Curse: drought — farm production multiplier
+    if "drought" in state.active_curses:
+        drought_curse = next(c for c in config.CURSES if c["curse_id"] == "drought")
+        farm_mult *= drought_curse["effect_value"]
 
     for building in state.buildings:
         workers = building.workers_assigned
@@ -668,7 +673,12 @@ def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
     if not _has_explored_neighbor(state, action.q, action.r):
         return
 
-    cost = config.HEX_EXPLORE_COST_BY_RING.get(ring, {})
+    base_cost = config.HEX_EXPLORE_COST_BY_RING.get(ring, {})
+    if "scarce_lands" in state.active_curses:
+        curse = next(c for c in config.CURSES if c["curse_id"] == "scarce_lands")
+        cost = {k: v * curse["effect_value"] for k, v in base_cost.items()}
+    else:
+        cost = base_cost
     if (
         state.wood < cost.get("wood", 0)
         or state.stone < cost.get("stone", 0)
@@ -797,6 +807,16 @@ def _add_season_log(state: GameState, season: str) -> None:
 
 def _is_winter(tick: int) -> bool:
     return (tick % config.SEASON_CYCLE_TICKS) >= (config.SEASON_CYCLE_TICKS - config.WINTER_LENGTH_TICKS)
+
+
+def _is_winter_for_state(state: GameState) -> bool:
+    """Like _is_winter but respects the hard_winter curse (extends winter length)."""
+    if "hard_winter" in state.active_curses:
+        curse = next(c for c in config.CURSES if c["curse_id"] == "hard_winter")
+        winter_length = round(config.WINTER_LENGTH_TICKS * curse["effect_value"])
+    else:
+        winter_length = config.WINTER_LENGTH_TICKS
+    return (state.tick % config.SEASON_CYCLE_TICKS) >= (config.SEASON_CYCLE_TICKS - winter_length)
 
 
 def get_season(tick: int) -> str:

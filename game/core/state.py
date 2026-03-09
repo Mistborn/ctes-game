@@ -105,6 +105,8 @@ class GameState:
     # Per-run multipliers set by meta upgrades (1.0 = no effect)
     food_consumption_mult: float = 1.0
     market_gold_bonus_mult: float = 1.0
+    # Active run modifier curse IDs chosen at run start
+    active_curses: List[str] = field(default_factory=list)
 
     # -------------------------------------------------------------------
     # Automation upgrades (set by new_game based on meta; toggled in-run)
@@ -156,6 +158,7 @@ class GameState:
             "total_gold_earned": self.total_gold_earned,
             "food_consumption_mult": self.food_consumption_mult,
             "market_gold_bonus_mult": self.market_gold_bonus_mult,
+            "active_curses": list(self.active_curses),
             "hex_tiles": self.hex_tiles,
             "auto_hire_unlocked": self.auto_hire_unlocked,
             "auto_hire_enabled": self.auto_hire_enabled,
@@ -202,6 +205,7 @@ class GameState:
             total_gold_earned=d.get("total_gold_earned", 0.0),
             food_consumption_mult=d.get("food_consumption_mult", 1.0),
             market_gold_bonus_mult=d.get("market_gold_bonus_mult", 1.0),
+            active_curses=list(d.get("active_curses", [])),
             hex_tiles=d.get("hex_tiles", {}),
             auto_hire_unlocked=d.get("auto_hire_unlocked", False),
             auto_hire_enabled=d.get("auto_hire_enabled", False),
@@ -228,8 +232,13 @@ class GameState:
     @property
     def win_gold_target(self) -> int:
         if self.run_number == 1:
-            return config.WIN_GOLD_TARGET_BASE
-        return round(config.WIN_GOLD_TARGET_RUN2 * config.WIN_GOLD_TARGET_RUN_MULTIPLIER ** (self.run_number - 2))
+            base = config.WIN_GOLD_TARGET_BASE
+        else:
+            base = round(config.WIN_GOLD_TARGET_RUN2 * config.WIN_GOLD_TARGET_RUN_MULTIPLIER ** (self.run_number - 2))
+        if "heavy_tribute" in self.active_curses:
+            curse = next(c for c in config.CURSES if c["curse_id"] == "heavy_tribute")
+            base = round(base * curse["effect_value"])
+        return base
 
     @property
     def colonist_count(self) -> int:

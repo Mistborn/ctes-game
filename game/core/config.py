@@ -404,6 +404,42 @@ TUTORIAL_HINTS = [
 # Legacy Points
 # ---------------------------------------------------------------------------
 LP_PER_WIN = 1
+CURSE_LP_BONUS_PER_CURSE = 1
+
+# ---------------------------------------------------------------------------
+# Run modifiers (curses) — opt-in difficulty for bonus LP
+# ---------------------------------------------------------------------------
+# Each entry: curse_id, name, description, effect_key, effect_value
+CURSES = [
+    {
+        "curse_id": "drought",
+        "name": "Drought",
+        "description": "Farms produce 30% less food",
+        "effect_key": "farm_production_mult",
+        "effect_value": 0.7,
+    },
+    {
+        "curse_id": "heavy_tribute",
+        "name": "Heavy Tribute",
+        "description": "Win gold target increased by 50%",
+        "effect_key": "win_gold_mult",
+        "effect_value": 1.5,
+    },
+    {
+        "curse_id": "hard_winter",
+        "name": "Hard Winter",
+        "description": "Winter lasts 50% longer (90 ticks instead of 60)",
+        "effect_key": "winter_length_mult",
+        "effect_value": 1.5,
+    },
+    {
+        "curse_id": "scarce_lands",
+        "name": "Scarce Lands",
+        "description": "Hex exploration costs 50% more",
+        "effect_key": "explore_cost_mult",
+        "effect_value": 1.5,
+    },
+]
 
 # ---------------------------------------------------------------------------
 # Meta upgrades
