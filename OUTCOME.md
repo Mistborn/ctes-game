@@ -36,7 +36,7 @@ No change — curses are opt-in (active_curses defaults to []), so headless stra
 - ✅ `ruff format` + `ruff check` — all passed
 
 ## PR URL
-(filled after push)
+https://github.com/Mistborn/ctes-game/pull/11
 
 ## Status
 success
