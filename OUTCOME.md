@@ -1,19 +1,19 @@
 # Outcome
 
 ## Summary
-Implemented run modifiers ("curses") that players can opt into at run start for increased difficulty in exchange for bonus Legacy Points. Four curses defined; each active curse grants +1 LP on win.
+Implemented the boss-gated advanced buildings framework (Feature A4). Added a `BOSS_BUILDING_GATES` registry in config, a `boss_unlocked_buildings` list on GameState, and wired up unlock logic in the boss fight handler plus a gate check in the build handler. Phase B buildings (Forge, Brewery, Workshop) will hook in automatically once their `BuildingType` enum values are added.
 
 ## Changes Made
-- **config.py**: Added `CURSES` list (4 entries: drought, heavy_tribute, hard_winter, scarce_lands) and `CURSE_LP_BONUS_PER_CURSE = 1` constant.
-- **state.py**: Added `active_curses: List[str]` field; updated `to_dict`/`from_dict`; updated `win_gold_target` property to apply `heavy_tribute` multiplier (×1.5).
-- **engine.py**: Applied curse effects in `_process_production` (drought: farm_mult ×0.7), added `_is_winter_for_state` helper for hard_winter (winter length ×1.5 = 90 ticks), applied scarce_lands multiplier (×1.5) to explore costs in `_handle_explore_hex`.
-- **progression.py**: Added curse LP bonus in `end_run`: `+len(active_curses) * CURSE_LP_BONUS_PER_CURSE` on win.
+- `game/core/config.py`: Added `BOSS_BUILDING_GATES: dict = {2: ["Forge", "Brewery"], 4: ["Workshop"]}`
+- `game/core/state.py`: Added `boss_unlocked_buildings: List[str]` field; updated `to_dict` and `from_dict`
+- `game/core/engine.py`:
+  - `_handle_fight_boss`: On win, extend `boss_unlocked_buildings` with `BOSS_BUILDING_GATES[ring]` entries
+  - `_handle_build_building`: Gate check — if building type value appears in any gate list and is not yet unlocked, refuse the build silently
 
 ## Files Modified
 - `game/core/config.py`
 - `game/core/state.py`
 - `game/core/engine.py`
-- `game/meta/progression.py`
 
 ## Metrics After Change
 | Strategy | Win Rate | Ticks (mean) | Gold (mean) | Starvations (mean) |
@@ -24,23 +24,21 @@ Implemented run modifiers ("curses") that players can opt into at run start for 
 | gold_rush | 1.00 | 650 | 500.0 | 0.0 |
 
 ## Delta vs Baseline
-No change — curses are opt-in (active_curses defaults to []), so headless strategies (which don't activate curses) are unaffected.
+No change — all metrics identical to baseline. The gating framework only affects Phase B building types (Forge, Brewery, Workshop) which do not yet exist as BuildingType values.
 
 ## Acceptance Criteria Results
-- ✅ `hasattr(s, 'active_curses')` — passes
-- ✅ `'active_curses' in json.loads(s.to_json())` — passes
-- ✅ `hasattr(config, 'CURSES')` — passes
-- ✅ `len(config.CURSES) >= 4` — passes (4 curses defined)
-- ✅ `hasattr(config, 'CURSE_LP_BONUS_PER_CURSE')` — passes
-- ✅ Serialization roundtrip: `s.to_json() == s2.to_json()` — passes
-- ✅ `ruff format` + `ruff check` — all passed
+- PASS: hasattr(s, 'boss_unlocked_buildings')
+- PASS: 'boss_unlocked_buildings' in json.loads(s.to_json())
+- PASS: hasattr(config, 'BOSS_BUILDING_GATES')
+- PASS: isinstance(config.BOSS_BUILDING_GATES, dict)
+- PASS: serialization roundtrip s.to_json() == GameState.from_json(s.to_json()).to_json()
 
 ## PR URL
-https://github.com/Mistborn/ctes-game/pull/11
+https://github.com/Mistborn/ctes-game/pull/12
 
 ## Status
 success
 
 ## Notes
-- `_is_winter_for_state(state)` is a new internal helper used in `_process_production`; the existing `_is_winter(tick)` is preserved for backwards compatibility and used in `get_season`.
-- Curse effects are composable: multiple curses stack independently.
+- ruff format and ruff check both pass cleanly
+- Gate entries are deduplicated on append (only added if not already in list)
