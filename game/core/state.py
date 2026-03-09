@@ -78,6 +78,11 @@ class GameState:
     info_log: List = field(default_factory=list)
 
     # -------------------------------------------------------------------
+    # Tutorial hints — IDs of hints already shown this run
+    # -------------------------------------------------------------------
+    shown_hints: List[str] = field(default_factory=list)
+
+    # -------------------------------------------------------------------
     # Research
     # -------------------------------------------------------------------
     researched_tech_ids: List[str] = field(default_factory=list)
@@ -152,6 +157,7 @@ class GameState:
             "auto_assign_unlocked": self.auto_assign_unlocked,
             "auto_assign_enabled": self.auto_assign_enabled,
             "info_log": [list(e) for e in self.info_log],
+            "shown_hints": list(self.shown_hints),
         }
 
     def to_json(self) -> str:
@@ -197,6 +203,7 @@ class GameState:
             auto_assign_enabled=d.get("auto_assign_enabled", False),
         )
         gs.info_log = [list(e) for e in d.get("info_log", [])]
+        gs.shown_hints = list(d.get("shown_hints", []))
         return gs
 
     @classmethod
