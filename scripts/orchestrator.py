@@ -637,7 +637,7 @@ def call_llm(client: anthropic.Anthropic, system: str, user: str, model: str = E
 def merge_pr(pr_url: str) -> bool:
     gh_cmd = shutil.which("gh") or r"C:\Program Files\GitHub CLI\gh.exe"
     result = subprocess.run(
-        [gh_cmd, "pr", "merge", pr_url, "--squash", "--delete-branch", "--yes"],
+        [gh_cmd, "pr", "merge", pr_url, "--squash", "--delete-branch"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,
