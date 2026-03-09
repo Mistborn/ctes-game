@@ -1,0 +1,323 @@
+[
+  {
+    "id": "A1",
+    "title": "Tutorial hints via info log",
+    "category": "new_player",
+    "priority": 1,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "Add contextual hint messages to the info_log system. When a new game starts (tick <= 3), show 'Assign colonists to the Farm and Lumber Mill to produce resources.' When wood > 50 and no market exists, show 'Build a Market to convert wood into gold.' When gold > 80 and no research done, show 'Research a technology to boost production.' When cartography is researched and no hex explored (beyond colony), show 'Explore hexes on the World Map for one-time resource rewards.' When a boss hex is explored and soldiers == 0, show 'Train soldiers at the Barracks to fight the boss.' When gold > 0.8 * win_gold_target, show 'You are close to your gold target — keep producing!' Hints should only fire once per run. Track shown_hints (list of hint IDs) on GameState. Add TUTORIAL_HINTS list in config.py with dicts: {hint_id, condition_description, message}. Max 6 hints. Check hint conditions in engine.tick() after production but before endgame check. When a hint fires, append to info_log with msg_type='info'. Add shown_hints to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'shown_hints')",
+      "from game.core.engine import new_game; s = new_game(); assert isinstance(s.shown_hints, list)",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'shown_hints' in d",
+      "from game.core import config; assert hasattr(config, 'TUTORIAL_HINTS')",
+      "from game.core import config; assert len(config.TUTORIAL_HINTS) >= 5"
+    ],
+    "needs_renderer": false,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "A2",
+    "title": "Milestone notifications",
+    "category": "new_player",
+    "priority": 2,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "Add achievement-style notifications to info_log for key milestones: 'First Market built!', 'Research complete: {tech_name}!', '10 colonists reached!', 'First hex explored!', 'Boss defeated!'. These use the existing info_log system. Track triggered_milestones (list of milestone IDs) on GameState to avoid repeats. Add MILESTONES list in config.py with dicts: {milestone_id, message_template}. Check milestone conditions in engine.apply_action (for build/research/explore/fight actions) and in engine.tick (for colonist count). When a milestone triggers, append to info_log with msg_type='info'. Add triggered_milestones to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'triggered_milestones')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'triggered_milestones' in d",
+      "from game.core import config; assert hasattr(config, 'MILESTONES')"
+    ],
+    "needs_renderer": false,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "A3",
+    "title": "Run modifiers (curses for bonus LP)",
+    "category": "run_variety",
+    "priority": 3,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "Add opt-in difficulty modifiers selectable at run start. Each curse grants +1 bonus LP on win. Define CURSES list in config.py with dicts: {curse_id, name, description, effect_key, effect_value}. Curses: 'drought' (farm_production_mult=0.7, i.e. -30%), 'heavy_tribute' (win_gold_mult=1.5, i.e. +50% gold target), 'hard_winter' (winter_length_mult=1.5, i.e. 90 ticks instead of 60), 'scarce_lands' (explore_cost_mult=1.5, i.e. +50% hex exploration cost). Store active_curses (list of curse_id strings) on GameState. In engine.tick(), apply curse multipliers: drought multiplies farm production, hard_winter extends winter detection. In _handle_explore_hex, apply scarce_lands multiplier to costs. In _check_endgame / win_gold_target property, apply heavy_tribute multiplier. In progression.py end_run(), count active_curses and add len(active_curses) bonus LP on win. Add CURSE_LP_BONUS_PER_CURSE=1 in config. Add active_curses to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py", "game/meta/progression.py"],
+    "acceptance_criteria": [
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'active_curses')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'active_curses' in d",
+      "from game.core import config; assert hasattr(config, 'CURSES')",
+      "from game.core import config; assert len(config.CURSES) >= 4",
+      "from game.core import config; assert hasattr(config, 'CURSE_LP_BONUS_PER_CURSE')"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "A4",
+    "title": "Boss-gated advanced buildings framework",
+    "category": "run_variety",
+    "priority": 4,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "Gate new advanced buildings (Forge, Workshop, Brewery — added in Phase B) behind boss kills. This feature establishes the gating framework that Phase B features will hook into. Add BOSS_BUILDING_GATES dict in config.py mapping boss tier (ring number) to list of BuildingType values that get unlocked: {2: ['Forge', 'Brewery'], 4: ['Workshop']}. Add boss_unlocked_buildings (list of building type value strings) to GameState. When a boss is killed in _handle_fight_boss(), look up BOSS_BUILDING_GATES for the boss's ring and extend boss_unlocked_buildings with the gate entries. In _handle_build_building(), check: if the building_type.value is in any gate list AND not in boss_unlocked_buildings, refuse the build. Existing buildings (Farm, Lumber Mill, Market, Quarry, Sawmill, Iron Mine, Barracks) are NEVER gated. Add boss_unlocked_buildings to to_dict/from_dict. Since Phase B buildings don't exist yet, the gating check will only activate once those BuildingType values are added.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'boss_unlocked_buildings')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'boss_unlocked_buildings' in d",
+      "from game.core import config; assert hasattr(config, 'BOSS_BUILDING_GATES')",
+      "from game.core import config; assert isinstance(config.BOSS_BUILDING_GATES, dict)"
+    ],
+    "needs_renderer": false,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "A5",
+    "title": "Auto-research meta upgrade",
+    "category": "automation",
+    "priority": 5,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "Add new LP upgrade 'Scholar\\'s Insight' (2 LP): when toggled on, automatically researches the cheapest available tech when gold exceeds the tech cost by 50%. Add to config.UPGRADES list: {id: 'auto_research', name: 'Scholar\\'s Insight', description: 'Toggle: auto-research cheapest tech when gold > 1.5x cost', lp_cost: 2, requires: None}. Add auto_research_unlocked and auto_research_enabled booleans to GameState (default False). In engine.new_game(), if meta has 'auto_research' unlocked, set both to True. In engine.tick(), after auto_hire/auto_assign block, add auto_research logic: find all unresearched techs, sort by gold_cost ascending, if cheapest cost * 1.5 <= state.gold, apply ActionResearchTech. Follow the exact pattern of auto_hire and auto_assign. Add both fields to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core import config; assert any(u['id'] == 'auto_research' for u in config.UPGRADES)",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_research_unlocked')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_research_enabled')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_research_unlocked' in d"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "B1",
+    "title": "Forge building + steel resource",
+    "category": "resource_chains",
+    "priority": 6,
+    "status": "pending",
+    "depends_on": ["A4"],
+    "spec": "Add BuildingType.FORGE to entities.py. Forge consumes iron + wood per worker per tick, produces steel. Config constants: FORGE_BUILD_COST={'wood': 50, 'iron': 15}, FORGE_MAX_WORKERS=4, FORGE_STEEL_PER_WORKER=0.4, FORGE_IRON_CONSUMED_PER_WORKER=0.3, FORGE_WOOD_CONSUMED_PER_WORKER=0.2, FORGE_PASSIVE_STEEL=0.0. Add STARTING_STEEL=0, STEEL_CAP=9999 to config. Add steel and steel_rate floats to GameState (default 0.0). Add steel to resource cap clamping and rate snapshot in engine.tick(). Add Forge production logic in _process_production(): consume iron + wood, produce steel (partial production if insufficient input, like Sawmill pattern). Add Forge to _max_workers_for() and _handle_build_building() (multi-resource cost pattern like Barracks). Forge is gated behind boss tier via A4's BOSS_BUILDING_GATES — add 'Forge' to the ring-2 gate list if not already there. Add steel/steel_rate to to_dict/from_dict. Update ResourceBundle if steel needs to be tracked there (optional — only if existing code requires it). Add Forge to playtest.py _MAX_WORKERS_MAP.",
+    "files_to_touch": ["game/core/config.py", "game/core/entities.py", "game/core/state.py", "game/core/engine.py", "game/agent/playtest.py"],
+    "acceptance_criteria": [
+      "from game.core.entities import BuildingType; assert hasattr(BuildingType, 'FORGE')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'steel')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'steel_rate')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'steel' in d",
+      "from game.core import config; assert hasattr(config, 'FORGE_STEEL_PER_WORKER')"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": true
+  },
+  {
+    "id": "B2",
+    "title": "Brewery building + morale system",
+    "category": "resource_chains",
+    "priority": 7,
+    "status": "pending",
+    "depends_on": ["A4"],
+    "spec": "Add BuildingType.BREWERY to entities.py. Brewery consumes food + wood per worker per tick, produces ale. Ale provides a colony-wide morale buff: when ale > 0, all production rates get +10% multiplier. Ale decays at 0.2/tick (consumed by colonists). Config constants: BREWERY_BUILD_COST={'wood': 35, 'food': 10}, BREWERY_MAX_WORKERS=3, BREWERY_ALE_PER_WORKER=0.3, BREWERY_FOOD_CONSUMED_PER_WORKER=0.2, BREWERY_WOOD_CONSUMED_PER_WORKER=0.1, MORALE_PRODUCTION_BONUS=0.10, ALE_DECAY_PER_TICK=0.2. Add STARTING_ALE=0, ALE_CAP=9999 to config. Add ale, ale_rate floats and morale_active bool to GameState. In _process_production(), first compute morale_mult = 1.0 + MORALE_PRODUCTION_BONUS if state.ale > 0 else 1.0, then apply it to all production multipliers. Add Brewery production: consume food + wood, produce ale (partial production pattern). After all production, decay ale: state.ale = max(0, state.ale - ALE_DECAY_PER_TICK). Update morale_active = state.ale > 0. Brewery gated behind boss tier 2 ring via BOSS_BUILDING_GATES. Add ale/ale_rate/morale_active to to_dict/from_dict. Add to _max_workers_for, _handle_build_building, _MAX_WORKERS_MAP.",
+    "files_to_touch": ["game/core/config.py", "game/core/entities.py", "game/core/state.py", "game/core/engine.py", "game/agent/playtest.py"],
+    "acceptance_criteria": [
+      "from game.core.entities import BuildingType; assert hasattr(BuildingType, 'BREWERY')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'ale')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'morale_active')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'ale' in d",
+      "from game.core import config; assert hasattr(config, 'MORALE_PRODUCTION_BONUS')"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": true
+  },
+  {
+    "id": "B3",
+    "title": "Carpenter's Workshop (planks -> furniture -> gold)",
+    "category": "resource_chains",
+    "priority": 8,
+    "status": "pending",
+    "depends_on": ["A4"],
+    "spec": "Add BuildingType.WORKSHOP to entities.py. Workshop converts planks into furniture. Furniture can be sold at Market for significantly higher gold rate (1.5 gold per furniture unit vs 1.0 for planks). Config: WORKSHOP_BUILD_COST={'wood': 45, 'planks': 20}, WORKSHOP_MAX_WORKERS=4, WORKSHOP_FURNITURE_PER_WORKER=0.3, WORKSHOP_PLANKS_CONSUMED_PER_WORKER=0.4. Add STARTING_FURNITURE=0, FURNITURE_CAP=9999 to config. Add furniture and furniture_rate floats to GameState. Workshop production: consume planks, produce furniture (partial production like Sawmill). Add MARKET_GOLD_WITH_FURNITURE_PER_WORKER_PER_TICK=1.5, MARKET_FURNITURE_PER_WORKER_PER_TICK=0.3 to config. Update Market production logic: prefer furniture > planks > wood. Workshop gated behind boss tier 4 ring via BOSS_BUILDING_GATES. Add furniture/furniture_rate to to_dict/from_dict. Add to all lookup maps.",
+    "files_to_touch": ["game/core/config.py", "game/core/entities.py", "game/core/state.py", "game/core/engine.py", "game/agent/playtest.py"],
+    "acceptance_criteria": [
+      "from game.core.entities import BuildingType; assert hasattr(BuildingType, 'WORKSHOP')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'furniture')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'furniture' in d",
+      "from game.core import config; assert hasattr(config, 'WORKSHOP_FURNITURE_PER_WORKER')"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": true
+  },
+  {
+    "id": "B4",
+    "title": "Kiln building (stone -> bricks)",
+    "category": "resource_chains",
+    "priority": 9,
+    "status": "pending",
+    "depends_on": ["B1"],
+    "spec": "Add BuildingType.KILN to entities.py. Kiln converts stone + wood into bricks. Config: KILN_BUILD_COST={'wood': 30, 'stone': 15}, KILN_MAX_WORKERS=3, KILN_BRICKS_PER_WORKER=0.4, KILN_STONE_CONSUMED_PER_WORKER=0.3, KILN_WOOD_CONSUMED_PER_WORKER=0.1. Add STARTING_BRICKS=0, BRICKS_CAP=9999 to config. Add bricks and bricks_rate floats to GameState. Kiln production: consume stone + wood, produce bricks (dual-input partial production). Optionally update Forge and Workshop build costs to also require bricks (e.g. FORGE_BUILD_COST add 'bricks': 10, WORKSHOP_BUILD_COST add 'bricks': 15). This adds a conversion step creating strategic timing decisions. Add bricks/bricks_rate to to_dict/from_dict. Add to all lookup maps.",
+    "files_to_touch": ["game/core/config.py", "game/core/entities.py", "game/core/state.py", "game/core/engine.py", "game/agent/playtest.py"],
+    "acceptance_criteria": [
+      "from game.core.entities import BuildingType; assert hasattr(BuildingType, 'KILN')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'bricks')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'bricks' in d",
+      "from game.core import config; assert hasattr(config, 'KILN_BRICKS_PER_WORKER')"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": true
+  },
+  {
+    "id": "C1",
+    "title": "Tier 2 boss on ring 4",
+    "category": "combat",
+    "priority": 10,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "Add a harder boss on a ring-4 hex. Config: BOSS_TIER2_STRENGTH=15, BOSS_TIER2_MIN_SOLDIERS=10, BOSS_TIER2_REWARD={'gold': 250, 'stone': 100}, BOSS_TIER2_SOLDIERS_LOST_WIN=4, BOSS_TIER2_SOLDIERS_LOST_LOSE=8, BOSS_TIER2_LP_REWARD=1. In _initialize_hex_map(), after placing the ring-2 boss, also collect ring-4 keys and place exactly one boss on a random ring-4 hex. In _handle_fight_boss(), determine boss tier from the hex's ring distance: ring 2 uses existing tier-1 stats, ring 4 uses tier-2 stats. Use tier-specific min_soldiers, strength, rewards, and soldier losses. First-kill LP is already handled by boss_rings_cleared + progression.end_run(). Add BOSS_TIER2_* constants to config. No new state fields needed — existing boss_rings_cleared already tracks per-ring clears.",
+    "files_to_touch": ["game/core/config.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core import config; assert hasattr(config, 'BOSS_TIER2_STRENGTH')",
+      "from game.core import config; assert config.BOSS_TIER2_STRENGTH > config.BOSS_STRENGTH",
+      "from game.core import config; assert hasattr(config, 'BOSS_TIER2_MIN_SOLDIERS')"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "C2",
+    "title": "Equipment system (swords + armor)",
+    "category": "combat",
+    "priority": 11,
+    "status": "pending",
+    "depends_on": ["B1"],
+    "spec": "Add equipment that modifies combat. Config: SWORD_COST={'iron': 5}, ARMOR_COST={'steel': 3}, ARMOR_LOSS_REDUCTION_PER_5=1 (reduce soldier losses by 1 per 5 armored soldiers). Add ActionCraftSword and ActionCraftArmor dataclasses to entities.py. Add swords and armor int fields to GameState (default 0). In engine.apply_action(), handle ActionCraftSword: if iron >= 5, subtract iron, increment swords. Handle ActionCraftArmor: if steel >= 3, subtract steel, increment armor. In _handle_fight_boss(): effective_soldiers = soldiers + min(swords, soldiers) for win probability calculation. On defeat, reduce soldier losses by armor // 5 (min loss = 1). Add swords/armor to to_dict/from_dict. Add both actions to the action dispatcher.",
+    "files_to_touch": ["game/core/config.py", "game/core/entities.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core.entities import ActionCraftSword, ActionCraftArmor",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'swords')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'armor')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'swords' in d",
+      "from game.core import config; assert hasattr(config, 'SWORD_COST')"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": true
+  },
+  {
+    "id": "C3",
+    "title": "Defense events (raider attacks)",
+    "category": "combat",
+    "priority": 12,
+    "status": "pending",
+    "depends_on": ["C1"],
+    "spec": "Every 300 ticks after first world map exploration, a raider attack event fires. Config: RAID_INTERVAL_TICKS=300, RAID_MIN_SOLDIERS_REPEL=3, RAID_STRONG_REPEL_SOLDIERS=8, RAID_LOSS_MIN=20, RAID_LOSS_MAX=40, RAID_REPEL_REWARD=15, RAID_STRONG_REPEL_REWARD=30. Add raid_timer (int, default 0) and raids_repelled (int, default 0) to GameState. In engine.tick(), after production: if any hex is explored (beyond colony), increment raid_timer. If raid_timer >= RAID_INTERVAL_TICKS, reset to 0 and process raid: if soldiers < 3, lose random(20,40) of a random resource (food/wood/gold/stone — pick one at random), log 'Raiders attacked! Lost {amount} {resource}.' to info_log. If soldiers >= 3 but < 8, repel and gain 15 gold, increment raids_repelled, log 'Raiders repelled! Gained 15 gold.' If soldiers >= 8, repel and gain 30 gold, log 'Raiders crushed! Gained 30 gold.' Add raid_timer/raids_repelled to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'raid_timer')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'raids_repelled')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'raid_timer' in d",
+      "from game.core import config; assert hasattr(config, 'RAID_INTERVAL_TICKS')"
+    ],
+    "needs_renderer": false,
+    "needs_strategy_update": true
+  },
+  {
+    "id": "C4",
+    "title": "Boss attempt cooldown",
+    "category": "combat",
+    "priority": 13,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "After a failed boss fight, impose a 50-tick cooldown before the player can attempt again. Config: BOSS_FIGHT_COOLDOWN_TICKS=50. Add boss_fight_cooldown (int, default 0) to GameState. In engine.tick(), if boss_fight_cooldown > 0, decrement by 1. In _handle_fight_boss(), at the start check if boss_fight_cooldown > 0 and return early if so. After a failed boss fight (won == False), set boss_fight_cooldown = BOSS_FIGHT_COOLDOWN_TICKS. Successful fights do NOT set cooldown. Add boss_fight_cooldown to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'boss_fight_cooldown')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'boss_fight_cooldown' in d",
+      "from game.core import config; assert config.BOSS_FIGHT_COOLDOWN_TICKS == 50"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "D1",
+    "title": "Auto-explore meta upgrade",
+    "category": "automation",
+    "priority": 14,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "New LP upgrade 'Pioneer Spirit' (3 LP): when toggled on, automatically explores the cheapest adjacent unexplored hex when resources allow (checked every 20 ticks). Add to config.UPGRADES: {id: 'auto_explore', name: 'Pioneer Spirit', description: 'Toggle: auto-explore cheapest hex every 20 ticks', lp_cost: 3, requires: None}. Config: AUTO_EXPLORE_INTERVAL=20. Add auto_explore_unlocked, auto_explore_enabled booleans and auto_explore_timer int (default 0) to GameState. In engine.new_game(), if meta has 'auto_explore' unlocked, set unlocked+enabled=True. In engine.tick(), after auto_research block: if auto_explore_enabled and hex_map_unlocked, increment auto_explore_timer. If timer >= AUTO_EXPLORE_INTERVAL, reset timer and find all explorable hexes (unexplored with explored neighbor), compute cost for each, sort by total cost ascending, attempt to explore the cheapest one if resources suffice. Follow auto_hire/auto_assign pattern. Add fields to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core import config; assert any(u['id'] == 'auto_explore' for u in config.UPGRADES)",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_explore_unlocked')",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_explore_enabled')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_explore_unlocked' in d"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "D2",
+    "title": "Resource auto-balance upgrade",
+    "category": "automation",
+    "priority": 15,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "New LP upgrade 'Efficient Governance' (3 LP): when toggled on, if food drops below 10, automatically moves one worker from the least-critical building (market > sawmill > quarry, i.e. market first) to a farm. If food > 200 and farm has > 2 workers, moves one farm worker to a building with open slots. Checked every 10 ticks. Add to config.UPGRADES: {id: 'auto_balance', name: 'Efficient Governance', description: 'Toggle: rebalance workers when food is critically low or excess', lp_cost: 3, requires: None}. Config: AUTO_BALANCE_INTERVAL=10, AUTO_BALANCE_LOW_FOOD=10, AUTO_BALANCE_HIGH_FOOD=200, AUTO_BALANCE_MIN_FARM_WORKERS=2. Add auto_balance_unlocked, auto_balance_enabled booleans and auto_balance_timer int to GameState. In engine.new_game() and engine.tick(), follow the auto_hire pattern. Add to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core import config; assert any(u['id'] == 'auto_balance' for u in config.UPGRADES)",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_balance_unlocked')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_balance_unlocked' in d"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "D3",
+    "title": "Building auto-upgrade",
+    "category": "automation",
+    "priority": 16,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "New LP upgrade 'Master Builder' (3 LP): when toggled on, automatically builds a second copy of the most productive building (by total worker output) when resources are 2x the build cost AND there are idle colonists. Checked every 30 ticks. Add to config.UPGRADES: {id: 'auto_build', name: 'Master Builder', description: 'Toggle: auto-build productive buildings when flush with resources', lp_cost: 3, requires: None}. Config: AUTO_BUILD_INTERVAL=30, AUTO_BUILD_COST_MULTIPLIER=2.0. Add auto_build_unlocked, auto_build_enabled booleans and auto_build_timer int to GameState. In engine.tick(): if enabled and timer fires, for each building type that exists, compute total output (workers * production_rate), find the type with highest output, check if resources >= 2x build cost and idle_colonists > 0, then build it. Follow auto_hire pattern. Add to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core import config; assert any(u['id'] == 'auto_build' for u in config.UPGRADES)",
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_build_unlocked')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_build_unlocked' in d"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "E1",
+    "title": "Hex map events",
+    "category": "run_variety",
+    "priority": 17,
+    "status": "pending",
+    "depends_on": [],
+    "spec": "When exploring certain hex types, trigger special one-time events. Config: HEX_EVENTS dict mapping terrain to list of {event_id, probability, description, effects}. Events: forest 20% 'Wandering Merchant' (trade: lose 30 wood, gain 20 gold — only if wood >= 30), ruins 30% 'Ancient Cache' (+50 gold bonus on top of normal reward), plains 15% 'Refugee Camp' (gain 1 free colonist). Events resolve instantly on exploration in _handle_explore_hex(). Track triggered_hex_events (list of 'q,r' keys where events fired) on GameState — this prevents re-triggering if save/load. After applying normal exploration rewards, check HEX_EVENTS for the terrain type, roll random, and apply effects. Log event to info_log. Add triggered_hex_events to to_dict/from_dict.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'triggered_hex_events')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'triggered_hex_events' in d",
+      "from game.core import config; assert hasattr(config, 'HEX_EVENTS')"
+    ],
+    "needs_renderer": false,
+    "needs_strategy_update": false
+  },
+  {
+    "id": "E2",
+    "title": "Alternative win conditions",
+    "category": "run_variety",
+    "priority": 18,
+    "status": "pending",
+    "depends_on": ["C1"],
+    "spec": "Add 2 alternative win conditions beyond gold accumulation: (1) 'Conqueror' — defeat both tier 1 (ring 2) and tier 2 (ring 4) bosses in a single run. Check: len(state.boss_rings_cleared) >= 2 and 2 in state.boss_rings_cleared and 4 in state.boss_rings_cleared. (2) 'Scholar' — research all 6 technologies in a single run. Check: len(state.researched_tech_ids) >= len(config.RESEARCH_TECHS). Each alternative win awards the same LP as a gold win. The player doesn't choose — any condition triggers victory. In _check_endgame(), after the existing gold check, add checks for Conqueror and Scholar conditions. If either is met, set status=WIN. Add win_condition string to GameState (default 'gold') to track which condition was met: 'gold', 'conqueror', or 'scholar'. Set it when the win triggers. Add win_condition to to_dict/from_dict. Log the win condition in info_log.",
+    "files_to_touch": ["game/core/config.py", "game/core/state.py", "game/core/engine.py"],
+    "acceptance_criteria": [
+      "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'win_condition')",
+      "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'win_condition' in d"
+    ],
+    "needs_renderer": true,
+    "needs_strategy_update": true
+  }
+]
