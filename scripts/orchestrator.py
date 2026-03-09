@@ -649,7 +649,9 @@ def merge_pr(pr_url: str) -> bool:
 
 
 def pull_main() -> None:
-    subprocess.run(["git", "pull", "--ff-only"], cwd=REPO_ROOT, capture_output=True)
+    result = subprocess.run(["git", "pull", "--ff-only"], cwd=REPO_ROOT, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"  WARNING: git pull failed: {result.stderr.strip()}")
 
 
 # ---------------------------------------------------------------------------
@@ -766,6 +768,7 @@ def main() -> None:
             branch = f"agent/feature-{feature_id.lower()}{rev_suffix}"
             print(f"\n  Branch: {branch}")
 
+            pull_main()
             try:
                 worktree_path = make_worktree(branch)
             except subprocess.CalledProcessError as exc:
