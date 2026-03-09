@@ -37,8 +37,8 @@ REPO_ROOT = Path(__file__).parent.parent.resolve()
 STATE_FILE = Path(__file__).parent / "orchestrator_state.json"
 BACKLOG_FILE = Path(__file__).parent / "backlog.json"
 WORKTREES_DIR = REPO_ROOT / ".claude" / "worktrees"
-MODEL = "claude-opus-4-6"
 EVAL_MODEL = "claude-sonnet-4-6"
+SUBAGENT_MODEL = "claude-sonnet-4-6"
 MAX_REVISIONS = 2
 DEFAULT_MAX_ITER = 18
 DEFAULT_BASELINE_RUNS = 20
@@ -319,17 +319,26 @@ def _find_claude() -> str:
     raise RuntimeError("claude CLI not found. Install Claude Code and ensure `claude` is on your PATH.")
 
 
-def run_subagent(worktree_path: Path) -> tuple[int, str]:
-    claude_cmd = _find_claude()
-
+def _make_subagent_env() -> dict:
+    """Build an environment dict for sub-agent processes."""
     env = os.environ.copy()
     extra = [r"C:\Users\me\.local\bin", r"C:\Program Files\GitHub CLI"]
     sep = ";" if sys.platform == "win32" else ":"
     env["PATH"] = sep.join(extra) + sep + env.get("PATH", "")
+    # Allow nested Claude Code sessions — the orchestrator itself runs inside Claude Code
+    env.pop("CLAUDECODE", None)
+    # Remove API key so sub-agents use Claude subscription (Pro/Max) instead of API credits
+    env.pop("ANTHROPIC_API_KEY", None)
+    return env
+
+
+def run_subagent(worktree_path: Path) -> tuple[int, str]:
+    claude_cmd = _find_claude()
+    env = _make_subagent_env()
 
     try:
         result = subprocess.run(
-            [claude_cmd, "-p", _SUBAGENT_PROMPT, "--dangerously-skip-permissions"],
+            [claude_cmd, "-p", _SUBAGENT_PROMPT, "--model", SUBAGENT_MODEL, "--dangerously-skip-permissions"],
             cwd=str(worktree_path),
             capture_output=True,
             text=True,
@@ -369,11 +378,7 @@ def run_strategy_update_agent(branch_name: str) -> tuple[int, str]:
     """Spawn a follow-up sub-agent to update playtest strategies after a feature merge."""
     worktree_path = make_worktree(branch_name)
     claude_cmd = _find_claude()
-
-    env = os.environ.copy()
-    extra = [r"C:\Users\me\.local\bin", r"C:\Program Files\GitHub CLI"]
-    sep = ";" if sys.platform == "win32" else ":"
-    env["PATH"] = sep.join(extra) + sep + env.get("PATH", "")
+    env = _make_subagent_env()
 
     try:
         result = subprocess.run(
@@ -606,7 +611,7 @@ def run_validation_layer3(
 # ---------------------------------------------------------------------------
 
 
-def call_llm(client: anthropic.Anthropic, system: str, user: str, model: str = MODEL) -> str:
+def call_llm(client: anthropic.Anthropic, system: str, user: str, model: str = EVAL_MODEL) -> str:
     for attempt in range(3):
         try:
             response = client.messages.create(
@@ -773,8 +778,7 @@ def main() -> None:
             returncode, agent_output = run_subagent(worktree_path)
             if returncode != 0:
                 print(f"  Sub-agent exited with code {returncode}.")
-                if returncode == -1:
-                    print(f"  {agent_output[:200]}")
+                print(f"  Output: {agent_output[:300]}")
 
             # Parse outcome
             outcome = parse_outcome(worktree_path)
@@ -789,6 +793,8 @@ def main() -> None:
                     "llm_reasoning": "Sub-agent produced no OUTCOME.md.",
                 }
                 state.history.append(record)
+                update_backlog_status(backlog, feature_id, "declined")
+                save_backlog(backlog)
                 save_state(state)
                 remove_worktree(branch)
                 break
