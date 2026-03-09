@@ -1,20 +1,15 @@
 # Outcome
 
 ## Summary
-Added the **Scholar's Insight** meta upgrade (`auto_research`, 2 LP). When toggled on, it
-automatically researches the cheapest available tech each tick whenever gold exceeds 1.5x the
-tech's cost. Follows the exact `auto_hire` / `auto_assign` pattern throughout the codebase.
+Added a Tier 2 boss on a ring-4 hex. The hex map initialization now places exactly one guaranteed boss on a random ring-4 hex in addition to the existing ring-2 boss. The fight handler determines boss tier from ring distance and uses tier-specific min_soldiers, strength, rewards, and soldier losses.
 
 ## Changes Made
-- `config.py`: Appended `auto_research` entry to `UPGRADES` list.
-- `state.py`: Added `auto_research_unlocked` and `auto_research_enabled` boolean fields; updated
-  `to_dict()` and `from_dict()`.
-- `engine.py`: Set both fields in `new_game()` when meta unlocks the upgrade; added `_auto_research()`
-  helper; called it in `tick()` immediately after the `auto_assign` block (step 6).
+- **config.py**: Added 6 new constants: `BOSS_TIER2_STRENGTH=15`, `BOSS_TIER2_MIN_SOLDIERS=10`, `BOSS_TIER2_REWARD={'gold': 250, 'stone': 100}`, `BOSS_TIER2_SOLDIERS_LOST_WIN=4`, `BOSS_TIER2_SOLDIERS_LOST_LOSE=8`, `BOSS_TIER2_LP_REWARD=1`.
+- **engine.py** (`_initialize_hex_map`): Collect ring-4 keys alongside ring-2 keys; place one boss on a random ring-4 hex after placing the ring-2 boss.
+- **engine.py** (`_handle_fight_boss`): Determine boss tier from `_ring_distance`; ring 4 uses tier-2 stats, all other rings use tier-1 stats. No new state fields needed.
 
 ## Files Modified
 - `game/core/config.py`
-- `game/core/state.py`
 - `game/core/engine.py`
 
 ## Metrics After Change
@@ -26,22 +21,21 @@ tech's cost. Follows the exact `auto_hire` / `auto_assign` pattern throughout th
 | gold_rush       | 1.00     | 650          | 500.0       | 0.0               |
 
 ## Delta vs Baseline
-No change -- all strategies perform identically to baseline. The new upgrade is only active when
-unlocked via meta progression; base headless strategies do not unlock it.
+No change. The tier-2 boss is placed on ring 4 which headless strategies do not explore (ring-4 exploration costs gold + planks and none of the 4 strategies attempt it). Balance is unchanged.
 
 ## Acceptance Criteria Results
-- PASS: any(u['id'] == 'auto_research' for u in config.UPGRADES)
-- PASS: hasattr(new_game(), 'auto_research_unlocked')
-- PASS: hasattr(new_game(), 'auto_research_enabled')
-- PASS: 'auto_research_unlocked' in json.loads(new_game().to_json())
-- PASS: Serialization roundtrip: s.to_json() == GameState.from_json(s.to_json()).to_json()
-- PASS: ruff format + ruff check -- all clean
+- PASS: `hasattr(config, 'BOSS_TIER2_STRENGTH')`
+- PASS: `config.BOSS_TIER2_STRENGTH > config.BOSS_STRENGTH` (15 > 8)
+- PASS: `hasattr(config, 'BOSS_TIER2_MIN_SOLDIERS')`
+- PASS: Serialization roundtrip: `s.to_json() == s2.to_json()`
+- PASS: `ruff format` + `ruff check` — all passed
 
 ## PR URL
-https://github.com/Mistborn/ctes-game/pull/13
+https://github.com/Mistborn/ctes-game/pull/14
 
 ## Status
 success
 
 ## Notes
-None.
+- No new state fields required; existing `boss_rings_cleared` list tracks per-ring clears.
+- LP reward on first kill is handled by the existing `boss_rings_cleared` + `progression.end_run()` logic, which already grants 1 LP per new ring cleared.

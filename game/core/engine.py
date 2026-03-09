@@ -612,29 +612,42 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
         return
     if not state.has_barracks:
         return
-    if state.soldiers < config.BOSS_MIN_SOLDIERS:
+
+    ring = _ring_distance(action.q, action.r)
+    if ring == 4:
+        min_soldiers = config.BOSS_TIER2_MIN_SOLDIERS
+        strength = config.BOSS_TIER2_STRENGTH
+        rewards = config.BOSS_TIER2_REWARD
+        soldiers_lost_win = config.BOSS_TIER2_SOLDIERS_LOST_WIN
+        soldiers_lost_lose = config.BOSS_TIER2_SOLDIERS_LOST_LOSE
+    else:
+        min_soldiers = config.BOSS_MIN_SOLDIERS
+        strength = config.BOSS_STRENGTH
+        rewards = config.BOSS_WIN_REWARDS
+        soldiers_lost_win = config.BOSS_SOLDIERS_LOST_WIN
+        soldiers_lost_lose = config.BOSS_SOLDIERS_LOST_LOSE
+
+    if state.soldiers < min_soldiers:
         return
 
-    win_prob = state.soldiers / (state.soldiers + config.BOSS_STRENGTH)
+    win_prob = state.soldiers / (state.soldiers + strength)
     won = random.random() < win_prob
 
     if won:
-        state.soldiers = max(0, state.soldiers - config.BOSS_SOLDIERS_LOST_WIN)
+        state.soldiers = max(0, state.soldiers - soldiers_lost_win)
         tile["has_boss"] = False
         state.boss_fights_won += 1
         _trigger_milestone(state, "boss_defeated", "Boss defeated!")
-        ring = _ring_distance(action.q, action.r)
         if ring not in state.boss_rings_cleared:
             state.boss_rings_cleared.append(ring)
         gate_entries = config.BOSS_BUILDING_GATES.get(ring, [])
         for entry in gate_entries:
             if entry not in state.boss_unlocked_buildings:
                 state.boss_unlocked_buildings.append(entry)
-        rewards = config.BOSS_WIN_REWARDS
         state.gold = min(state.gold + rewards.get("gold", 0), config.GOLD_CAP)
         state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
     else:
-        state.soldiers = max(0, state.soldiers - config.BOSS_SOLDIERS_LOST_LOSE)
+        state.soldiers = max(0, state.soldiers - soldiers_lost_lose)
 
 
 # ---------------------------------------------------------------------------
@@ -668,6 +681,7 @@ def _initialize_hex_map(state: GameState) -> None:
     # First pass: assign terrain to every hex
     tiles: dict[str, dict] = {}
     ring2_keys: list[str] = []
+    ring4_keys: list[str] = []
     for q in range(-radius, radius + 1):
         for r in range(max(-radius, -q - radius), min(radius, -q + radius) + 1):
             key = f"{q},{r}"
@@ -679,10 +693,17 @@ def _initialize_hex_map(state: GameState) -> None:
                 tiles[key] = {"terrain": terrain, "explored": False, "has_boss": False}
                 if ring == 2:
                     ring2_keys.append(key)
+                elif ring == 4:
+                    ring4_keys.append(key)
 
     # Guarantee exactly one boss on a random ring-2 hex (tier 1 boss)
     if ring2_keys:
         boss_key = rng.choice(ring2_keys)
+        tiles[boss_key]["has_boss"] = True
+
+    # Guarantee exactly one boss on a random ring-4 hex (tier 2 boss)
+    if ring4_keys:
+        boss_key = rng.choice(ring4_keys)
         tiles[boss_key]["has_boss"] = True
 
     state.hex_tiles = tiles
