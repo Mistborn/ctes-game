@@ -69,6 +69,9 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
         if "auto_assign" in unlocked:
             state.auto_assign_unlocked = True
             state.auto_assign_enabled = True
+        if "auto_research" in unlocked:
+            state.auto_research_unlocked = True
+            state.auto_research_enabled = True
     else:
         starting_colonists = config.STARTING_COLONISTS
 
@@ -177,6 +180,8 @@ def tick(state: GameState) -> GameState:
         _handle_recruit_citizen(state)
     if state.auto_assign_enabled:
         _auto_assign_idle_colonists(state)
+    if state.auto_research_enabled:
+        _auto_research(state)
 
     # 7. Tutorial hints
     _check_tutorial_hints(state)
@@ -426,6 +431,16 @@ def _auto_assign_idle_colonists(state: GameState) -> None:
                 colonist.assigned_building_id = building.id
                 building.workers_assigned += 1
                 break
+
+
+def _auto_research(state: GameState) -> None:
+    """Research the cheapest available tech when gold exceeds 1.5x its cost."""
+    unresearched = [t for t in config.RESEARCH_TECHS if t["tech_id"] not in state.researched_tech_ids]
+    if not unresearched:
+        return
+    cheapest = min(unresearched, key=lambda t: t["gold_cost"])
+    if cheapest["gold_cost"] * 1.5 <= state.gold:
+        _handle_research_tech(state, ActionResearchTech(tech_id=cheapest["tech_id"]))
 
 
 # ---------------------------------------------------------------------------

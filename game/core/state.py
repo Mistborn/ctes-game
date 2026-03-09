@@ -117,6 +117,8 @@ class GameState:
     auto_hire_enabled: bool = False
     auto_assign_unlocked: bool = False
     auto_assign_enabled: bool = False
+    auto_research_unlocked: bool = False
+    auto_research_enabled: bool = False
 
     # -------------------------------------------------------------------
     # Game status
@@ -167,6 +169,8 @@ class GameState:
             "auto_hire_enabled": self.auto_hire_enabled,
             "auto_assign_unlocked": self.auto_assign_unlocked,
             "auto_assign_enabled": self.auto_assign_enabled,
+            "auto_research_unlocked": self.auto_research_unlocked,
+            "auto_research_enabled": self.auto_research_enabled,
             "info_log": [list(e) for e in self.info_log],
             "shown_hints": list(self.shown_hints),
             "triggered_milestones": list(self.triggered_milestones),
@@ -215,6 +219,8 @@ class GameState:
             auto_hire_enabled=d.get("auto_hire_enabled", False),
             auto_assign_unlocked=d.get("auto_assign_unlocked", False),
             auto_assign_enabled=d.get("auto_assign_enabled", False),
+            auto_research_unlocked=d.get("auto_research_unlocked", False),
+            auto_research_enabled=d.get("auto_research_enabled", False),
         )
         gs.info_log = [list(e) for e in d.get("info_log", [])]
         gs.shown_hints = list(d.get("shown_hints", []))
