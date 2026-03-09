@@ -4,7 +4,7 @@
     "title": "Tutorial hints via info log",
     "category": "new_player",
     "priority": 1,
-    "status": "pending",
+    "status": "declined",
     "depends_on": [],
     "spec": "Add contextual hint messages to the info_log system. When a new game starts (tick <= 3), show 'Assign colonists to the Farm and Lumber Mill to produce resources.' When wood > 50 and no market exists, show 'Build a Market to convert wood into gold.' When gold > 80 and no research done, show 'Research a technology to boost production.' When cartography is researched and no hex explored (beyond colony), show 'Explore hexes on the World Map for one-time resource rewards.' When a boss hex is explored and soldiers == 0, show 'Train soldiers at the Barracks to fight the boss.' When gold > 0.8 * win_gold_target, show 'You are close to your gold target — keep producing!' Hints should only fire once per run. Track shown_hints (list of hint IDs) on GameState. Add TUTORIAL_HINTS list in config.py with dicts: {hint_id, condition_description, message}. Max 6 hints. Check hint conditions in engine.tick() after production but before endgame check. When a hint fires, append to info_log with msg_type='info'. Add shown_hints to to_dict/from_dict.",
     "files_to_touch": [
@@ -27,7 +27,7 @@
     "title": "Milestone notifications",
     "category": "new_player",
     "priority": 2,
-    "status": "pending",
+    "status": "declined",
     "depends_on": [],
     "spec": "Add achievement-style notifications to info_log for key milestones: 'First Market built!', 'Research complete: {tech_name}!', '10 colonists reached!', 'First hex explored!', 'Boss defeated!'. These use the existing info_log system. Track triggered_milestones (list of milestone IDs) on GameState to avoid repeats. Add MILESTONES list in config.py with dicts: {milestone_id, message_template}. Check milestone conditions in engine.apply_action (for build/research/explore/fight actions) and in engine.tick (for colonist count). When a milestone triggers, append to info_log with msg_type='info'. Add triggered_milestones to to_dict/from_dict.",
     "files_to_touch": [
@@ -48,7 +48,7 @@
     "title": "Run modifiers (curses for bonus LP)",
     "category": "run_variety",
     "priority": 3,
-    "status": "pending",
+    "status": "declined",
     "depends_on": [],
     "spec": "Add opt-in difficulty modifiers selectable at run start. Each curse grants +1 bonus LP on win. Define CURSES list in config.py with dicts: {curse_id, name, description, effect_key, effect_value}. Curses: 'drought' (farm_production_mult=0.7, i.e. -30%), 'heavy_tribute' (win_gold_mult=1.5, i.e. +50% gold target), 'hard_winter' (winter_length_mult=1.5, i.e. 90 ticks instead of 60), 'scarce_lands' (explore_cost_mult=1.5, i.e. +50% hex exploration cost). Store active_curses (list of curse_id strings) on GameState. In engine.tick(), apply curse multipliers: drought multiplies farm production, hard_winter extends winter detection. In _handle_explore_hex, apply scarce_lands multiplier to costs. In _check_endgame / win_gold_target property, apply heavy_tribute multiplier. In progression.py end_run(), count active_curses and add len(active_curses) bonus LP on win. Add CURSE_LP_BONUS_PER_CURSE=1 in config. Add active_curses to to_dict/from_dict.",
     "files_to_touch": [
@@ -72,7 +72,7 @@
     "title": "Boss-gated advanced buildings framework",
     "category": "run_variety",
     "priority": 4,
-    "status": "pending",
+    "status": "declined",
     "depends_on": [],
     "spec": "Gate new advanced buildings (Forge, Workshop, Brewery — added in Phase B) behind boss kills. This feature establishes the gating framework that Phase B features will hook into. Add BOSS_BUILDING_GATES dict in config.py mapping boss tier (ring number) to list of BuildingType values that get unlocked: {2: ['Forge', 'Brewery'], 4: ['Workshop']}. Add boss_unlocked_buildings (list of building type value strings) to GameState. When a boss is killed in _handle_fight_boss(), look up BOSS_BUILDING_GATES for the boss's ring and extend boss_unlocked_buildings with the gate entries. In _handle_build_building(), check: if the building_type.value is in any gate list AND not in boss_unlocked_buildings, refuse the build. Existing buildings (Farm, Lumber Mill, Market, Quarry, Sawmill, Iron Mine, Barracks) are NEVER gated. Add boss_unlocked_buildings to to_dict/from_dict. Since Phase B buildings don't exist yet, the gating check will only activate once those BuildingType values are added.",
     "files_to_touch": [
