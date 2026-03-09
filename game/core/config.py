@@ -519,4 +519,11 @@ UPGRADES = [
         "lp_cost": 2,
         "requires": None,
     },
+    {
+        "id": "auto_research",
+        "name": "Scholar's Insight",
+        "description": "Toggle: auto-research cheapest tech when gold > 1.5x cost",
+        "lp_cost": 2,
+        "requires": None,
+    },
 ]
