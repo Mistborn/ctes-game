@@ -88,6 +88,11 @@ class GameState:
     researched_tech_ids: List[str] = field(default_factory=list)
 
     # -------------------------------------------------------------------
+    # Milestones — IDs of already-triggered milestone notifications
+    # -------------------------------------------------------------------
+    triggered_milestones: List[str] = field(default_factory=list)
+
+    # -------------------------------------------------------------------
     # Hex world map  {"q,r": {"terrain": str, "explored": bool}}
     # -------------------------------------------------------------------
     hex_tiles: dict = field(default_factory=dict)
@@ -158,6 +163,7 @@ class GameState:
             "auto_assign_enabled": self.auto_assign_enabled,
             "info_log": [list(e) for e in self.info_log],
             "shown_hints": list(self.shown_hints),
+            "triggered_milestones": list(self.triggered_milestones),
         }
 
     def to_json(self) -> str:
@@ -204,6 +210,7 @@ class GameState:
         )
         gs.info_log = [list(e) for e in d.get("info_log", [])]
         gs.shown_hints = list(d.get("shown_hints", []))
+        gs.triggered_milestones = list(d.get("triggered_milestones", []))
         return gs
 
     @classmethod

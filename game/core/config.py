@@ -408,6 +408,24 @@ LP_PER_WIN = 1
 # ---------------------------------------------------------------------------
 # Meta upgrades
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Milestone notifications
+# ---------------------------------------------------------------------------
+# Each entry: milestone_id (unique), message_template (display string)
+# Research milestones are generated from RESEARCH_TECHS below.
+MILESTONES = [
+    {"milestone_id": "first_market", "message_template": "First Market built!"},
+    {"milestone_id": "colonists_10", "message_template": "10 colonists reached!"},
+    {"milestone_id": "first_hex_explored", "message_template": "First hex explored!"},
+    {"milestone_id": "boss_defeated", "message_template": "Boss defeated!"},
+] + [
+    {
+        "milestone_id": f"research_{tech['tech_id']}",
+        "message_template": f"Research complete: {tech['name']}!",
+    }
+    for tech in RESEARCH_TECHS
+]
+
 UPGRADES = [
     {
         "id": "extra_colonists_2",
