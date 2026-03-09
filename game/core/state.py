@@ -69,6 +69,8 @@ class GameState:
     boss_fights_won: int = 0
     # Ring numbers of boss hexes cleared this run (used to award first-kill LP at run end)
     boss_rings_cleared: List[int] = field(default_factory=list)
+    # Building type value strings unlocked by killing bosses (populated by BOSS_BUILDING_GATES)
+    boss_unlocked_buildings: List[str] = field(default_factory=list)
 
     # -------------------------------------------------------------------
     # Info log — seasonal/event messages shown in the left sidebar
@@ -151,6 +153,7 @@ class GameState:
             "soldiers": self.soldiers,
             "boss_fights_won": self.boss_fights_won,
             "boss_rings_cleared": list(self.boss_rings_cleared),
+            "boss_unlocked_buildings": list(self.boss_unlocked_buildings),
             "status": self.status.value,
             "paused": self.paused,
             "researched_tech_ids": list(self.researched_tech_ids),
@@ -198,6 +201,7 @@ class GameState:
             soldiers=d.get("soldiers", 0),
             boss_fights_won=d.get("boss_fights_won", 0),
             boss_rings_cleared=list(d.get("boss_rings_cleared", [])),
+            boss_unlocked_buildings=list(d.get("boss_unlocked_buildings", [])),
             status=GameStatus(d["status"]),
             paused=d.get("paused", False),
             researched_tech_ids=list(d.get("researched_tech_ids", [])),

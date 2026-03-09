@@ -465,6 +465,12 @@ def _handle_assign_worker(state: GameState, action: ActionAssignWorker) -> None:
 
 
 def _handle_build_building(state: GameState, action: ActionBuildBuilding) -> None:
+    # Check boss gate: if this building type is listed in any BOSS_BUILDING_GATES entry,
+    # it must have been unlocked by defeating the corresponding boss first.
+    all_gated = [v for values in config.BOSS_BUILDING_GATES.values() for v in values]
+    if action.building_type.value in all_gated and action.building_type.value not in state.boss_unlocked_buildings:
+        return
+
     existing = sum(1 for b in state.buildings if b.building_type == action.building_type)
 
     # Multi-resource buildings handled separately
@@ -605,6 +611,10 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
         ring = _ring_distance(action.q, action.r)
         if ring not in state.boss_rings_cleared:
             state.boss_rings_cleared.append(ring)
+        gate_entries = config.BOSS_BUILDING_GATES.get(ring, [])
+        for entry in gate_entries:
+            if entry not in state.boss_unlocked_buildings:
+                state.boss_unlocked_buildings.append(entry)
         rewards = config.BOSS_WIN_REWARDS
         state.gold = min(state.gold + rewards.get("gold", 0), config.GOLD_CAP)
         state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)

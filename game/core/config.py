@@ -333,6 +333,13 @@ BOSS_SOLDIERS_LOST_LOSE = 5  # soldiers consumed on defeat
 # Legacy Point bonus awarded the *first time ever* a boss tier is cleared (across all runs)
 BOSS_LP_REWARD = 1
 
+# Boss-gated advanced buildings: maps ring number -> list of BuildingType.value strings unlocked
+# Phase B buildings (Forge, Brewery, Workshop) will be added later; this dict is the gating registry.
+BOSS_BUILDING_GATES: dict = {
+    2: ["Forge", "Brewery"],
+    4: ["Workshop"],
+}
+
 # ---------------------------------------------------------------------------
 # Boss tier design notes
 # ---------------------------------------------------------------------------
