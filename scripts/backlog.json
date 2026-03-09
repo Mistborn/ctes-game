@@ -94,7 +94,7 @@
     "title": "Auto-research meta upgrade",
     "category": "automation",
     "priority": 5,
-    "status": "pending",
+    "status": "completed",
     "depends_on": [],
     "spec": "Add new LP upgrade 'Scholar\\'s Insight' (2 LP): when toggled on, automatically researches the cheapest available tech when gold exceeds the tech cost by 50%. Add to config.UPGRADES list: {id: 'auto_research', name: 'Scholar\\'s Insight', description: 'Toggle: auto-research cheapest tech when gold > 1.5x cost', lp_cost: 2, requires: None}. Add auto_research_unlocked and auto_research_enabled booleans to GameState (default False). In engine.new_game(), if meta has 'auto_research' unlocked, set both to True. In engine.tick(), after auto_hire/auto_assign block, add auto_research logic: find all unresearched techs, sort by gold_cost ascending, if cheapest cost * 1.5 <= state.gold, apply ActionResearchTech. Follow the exact pattern of auto_hire and auto_assign. Add both fields to to_dict/from_dict.",
     "files_to_touch": [
@@ -222,7 +222,7 @@
     "title": "Tier 2 boss on ring 4",
     "category": "combat",
     "priority": 10,
-    "status": "pending",
+    "status": "completed",
     "depends_on": [],
     "spec": "Add a harder boss on a ring-4 hex. Config: BOSS_TIER2_STRENGTH=15, BOSS_TIER2_MIN_SOLDIERS=10, BOSS_TIER2_REWARD={'gold': 250, 'stone': 100}, BOSS_TIER2_SOLDIERS_LOST_WIN=4, BOSS_TIER2_SOLDIERS_LOST_LOSE=8, BOSS_TIER2_LP_REWARD=1. In _initialize_hex_map(), after placing the ring-2 boss, also collect ring-4 keys and place exactly one boss on a random ring-4 hex. In _handle_fight_boss(), determine boss tier from the hex's ring distance: ring 2 uses existing tier-1 stats, ring 4 uses tier-2 stats. Use tier-specific min_soldiers, strength, rewards, and soldier losses. First-kill LP is already handled by boss_rings_cleared + progression.end_run(). Add BOSS_TIER2_* constants to config. No new state fields needed — existing boss_rings_cleared already tracks per-ring clears.",
     "files_to_touch": [
