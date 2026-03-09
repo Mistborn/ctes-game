@@ -327,8 +327,9 @@ def _make_subagent_env() -> dict:
     env["PATH"] = sep.join(extra) + sep + env.get("PATH", "")
     # Allow nested Claude Code sessions — the orchestrator itself runs inside Claude Code
     env.pop("CLAUDECODE", None)
-    # Remove API key so sub-agents use Claude subscription (Pro/Max) instead of API credits
+    # Remove API keys so sub-agents use Claude subscription (Pro/Max) instead of API credits
     env.pop("ANTHROPIC_API_KEY", None)
+    env.pop("ORCHESTRATOR_API_KEY", None)
     return env
 
 
@@ -697,7 +698,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    client = anthropic.Anthropic()
+    # Use ORCHESTRATOR_API_KEY (not ANTHROPIC_API_KEY) so sub-agents don't inherit it
+    api_key = os.environ.get("ORCHESTRATOR_API_KEY")
+    if not api_key:
+        print("ERROR: ORCHESTRATOR_API_KEY not set. Set it in ~/.claude/settings.json env block.")
+        sys.exit(1)
+    client = anthropic.Anthropic(api_key=api_key)
 
     # Load or create state
     if args.resume:
