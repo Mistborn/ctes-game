@@ -324,7 +324,7 @@ BARRACKS_MAX_SOLDIERS = 20
 # Soldier training
 TRAIN_SOLDIER_COST = {"food": 10, "iron": 5}
 
-# Boss fight
+# Boss fight — Tier 1 (ring 2)
 BOSS_MIN_SOLDIERS = 5  # minimum soldiers required to attempt
 BOSS_STRENGTH = 8  # lower = easier; win_prob = soldiers / (soldiers + BOSS_STRENGTH)
 BOSS_WIN_REWARDS = {"gold": 100, "stone": 50}
@@ -339,6 +339,14 @@ BOSS_BUILDING_GATES: dict = {
     2: ["Forge", "Brewery"],
     4: ["Workshop"],
 }
+
+# Boss fight — Tier 2 (ring 4)
+BOSS_TIER2_STRENGTH = 15
+BOSS_TIER2_MIN_SOLDIERS = 10
+BOSS_TIER2_REWARD = {"gold": 250, "stone": 100}
+BOSS_TIER2_SOLDIERS_LOST_WIN = 4
+BOSS_TIER2_SOLDIERS_LOST_LOSE = 8
+BOSS_TIER2_LP_REWARD = 1
 
 # ---------------------------------------------------------------------------
 # Boss tier design notes
