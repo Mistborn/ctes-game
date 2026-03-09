@@ -38,6 +38,26 @@ powershell.exe -Command "Stop-Process -Name python -Force"
 
 After generating fresh sprite(s), verify by launching the game to the world map (see "Load pre-boss save on world map" above), take a screenshot, and ask the user to check the look.
 
+## Running the orchestrator
+
+The orchestrator reads features from `scripts/backlog.json` and spawns Claude sub-agents to implement them. Sub-agents use the Claude Pro subscription (not API credits).
+
+```bash
+# Full run (implements up to N features from the backlog)
+uv run python scripts/orchestrator.py --max-iterations 5 --baseline-runs 10
+
+# Resume after interruption (picks up where it left off)
+uv run python scripts/orchestrator.py --resume
+
+# Dry run (select next feature + write AGENT_TASK.md, don't spawn sub-agent)
+uv run python scripts/orchestrator.py --dry-run
+
+# Standalone validation (check current codebase health)
+uv run python scripts/validate.py --layer 1 --runs 5
+```
+
+After the run, merge any open PRs manually if `gh pr merge` failed. Rebase may be needed when multiple PRs touch the same files.
+
 ## Environment notes
 
 - Git identity: name="Vlad Dolezal", email="4179152+Mistborn@users.noreply.github.com"
