@@ -178,7 +178,10 @@ def tick(state: GameState) -> GameState:
     if state.auto_assign_enabled:
         _auto_assign_idle_colonists(state)
 
-    # 7. Win / Lose checks
+    # 7. Tutorial hints
+    _check_tutorial_hints(state)
+
+    # 8. Win / Lose checks
     _check_endgame(state)
 
     return state
@@ -678,6 +681,58 @@ def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
     state.gold = min(state.gold + rewards.get("gold", 0), config.GOLD_CAP)
     state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
     state.planks = min(state.planks + rewards.get("planks", 0), config.PLANKS_CAP)
+
+
+# ---------------------------------------------------------------------------
+# Tutorial hints
+# ---------------------------------------------------------------------------
+
+
+def _check_tutorial_hints(state: GameState) -> None:
+    """Fire any tutorial hints whose conditions are met (once per hint per run)."""
+    shown = set(state.shown_hints)
+
+    def _fire(hint_id: str, message: str) -> None:
+        state.shown_hints.append(hint_id)
+        state.info_log.append([state.tick, message, "info"])
+        if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+            state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+
+    hint = config.TUTORIAL_HINTS[0]  # assign_workers
+    if hint["hint_id"] not in shown and state.tick <= 3:
+        _fire(hint["hint_id"], hint["message"])
+        shown.add(hint["hint_id"])
+
+    hint = config.TUTORIAL_HINTS[1]  # build_market
+    if hint["hint_id"] not in shown and state.wood > 50:
+        has_market = any(b.building_type == BuildingType.MARKET for b in state.buildings)
+        if not has_market:
+            _fire(hint["hint_id"], hint["message"])
+            shown.add(hint["hint_id"])
+
+    hint = config.TUTORIAL_HINTS[2]  # research_tech
+    if hint["hint_id"] not in shown and state.gold > 80 and not state.researched_tech_ids:
+        _fire(hint["hint_id"], hint["message"])
+        shown.add(hint["hint_id"])
+
+    hint = config.TUTORIAL_HINTS[3]  # explore_hexes
+    if hint["hint_id"] not in shown and "cartography" in state.researched_tech_ids:
+        non_colony_explored = any(tile.get("explored") for key, tile in state.hex_tiles.items() if key != "0,0")
+        if not non_colony_explored:
+            _fire(hint["hint_id"], hint["message"])
+            shown.add(hint["hint_id"])
+
+    hint = config.TUTORIAL_HINTS[4]  # train_soldiers
+    if hint["hint_id"] not in shown and state.soldiers == 0:
+        boss_explored = any(tile.get("explored") and tile.get("has_boss") for tile in state.hex_tiles.values())
+        if boss_explored:
+            _fire(hint["hint_id"], hint["message"])
+            shown.add(hint["hint_id"])
+
+    hint = config.TUTORIAL_HINTS[5]  # gold_target_close
+    if hint["hint_id"] not in shown and state.gold > 0.8 * state.win_gold_target:
+        _fire(hint["hint_id"], hint["message"])
+        shown.add(hint["hint_id"])
 
 
 # ---------------------------------------------------------------------------

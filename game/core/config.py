@@ -364,6 +364,43 @@ WINTER_FOOD_PRODUCTION_MULT = 0.5
 INFO_LOG_MAX_ENTRIES = 8
 
 # ---------------------------------------------------------------------------
+# Tutorial hints
+# ---------------------------------------------------------------------------
+# Each entry: hint_id, condition_description (human-readable), message
+TUTORIAL_HINTS = [
+    {
+        "hint_id": "assign_workers",
+        "condition_description": "tick <= 3",
+        "message": "Assign colonists to the Farm and Lumber Mill to produce resources.",
+    },
+    {
+        "hint_id": "build_market",
+        "condition_description": "wood > 50 and no market exists",
+        "message": "Build a Market to convert wood into gold.",
+    },
+    {
+        "hint_id": "research_tech",
+        "condition_description": "gold > 80 and no research done",
+        "message": "Research a technology to boost production.",
+    },
+    {
+        "hint_id": "explore_hexes",
+        "condition_description": "cartography researched and no hex explored beyond colony",
+        "message": "Explore hexes on the World Map for one-time resource rewards.",
+    },
+    {
+        "hint_id": "train_soldiers",
+        "condition_description": "boss hex explored and soldiers == 0",
+        "message": "Train soldiers at the Barracks to fight the boss.",
+    },
+    {
+        "hint_id": "gold_target_close",
+        "condition_description": "gold > 0.8 * win_gold_target",
+        "message": "You are close to your gold target — keep producing!",
+    },
+]
+
+# ---------------------------------------------------------------------------
 # Legacy Points
 # ---------------------------------------------------------------------------
 LP_PER_WIN = 1
