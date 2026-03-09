@@ -1,14 +1,16 @@
 # Outcome
 
 ## Summary
-Implemented the boss-gated advanced buildings framework (Feature A4). Added a `BOSS_BUILDING_GATES` registry in config, a `boss_unlocked_buildings` list on GameState, and wired up unlock logic in the boss fight handler plus a gate check in the build handler. Phase B buildings (Forge, Brewery, Workshop) will hook in automatically once their `BuildingType` enum values are added.
+Added the **Scholar's Insight** meta upgrade (`auto_research`, 2 LP). When toggled on, it
+automatically researches the cheapest available tech each tick whenever gold exceeds 1.5x the
+tech's cost. Follows the exact `auto_hire` / `auto_assign` pattern throughout the codebase.
 
 ## Changes Made
-- `game/core/config.py`: Added `BOSS_BUILDING_GATES: dict = {2: ["Forge", "Brewery"], 4: ["Workshop"]}`
-- `game/core/state.py`: Added `boss_unlocked_buildings: List[str]` field; updated `to_dict` and `from_dict`
-- `game/core/engine.py`:
-  - `_handle_fight_boss`: On win, extend `boss_unlocked_buildings` with `BOSS_BUILDING_GATES[ring]` entries
-  - `_handle_build_building`: Gate check — if building type value appears in any gate list and is not yet unlocked, refuse the build silently
+- `config.py`: Appended `auto_research` entry to `UPGRADES` list.
+- `state.py`: Added `auto_research_unlocked` and `auto_research_enabled` boolean fields; updated
+  `to_dict()` and `from_dict()`.
+- `engine.py`: Set both fields in `new_game()` when meta unlocks the upgrade; added `_auto_research()`
+  helper; called it in `tick()` immediately after the `auto_assign` block (step 6).
 
 ## Files Modified
 - `game/core/config.py`
@@ -16,29 +18,30 @@ Implemented the boss-gated advanced buildings framework (Feature A4). Added a `B
 - `game/core/engine.py`
 
 ## Metrics After Change
-| Strategy | Win Rate | Ticks (mean) | Gold (mean) | Starvations (mean) |
-|----------|----------|--------------|-------------|-------------------|
-| food_first | 1.00 | 650 | 500.0 | 0.0 |
-| production_rush | 1.00 | 679 | 500.0 | 0.0 |
-| balanced | 1.00 | 650 | 500.0 | 0.0 |
-| gold_rush | 1.00 | 650 | 500.0 | 0.0 |
+| Strategy        | Win Rate | Ticks (mean) | Gold (mean) | Starvations (mean) |
+|-----------------|----------|--------------|-------------|-------------------|
+| food_first      | 1.00     | 650          | 500.0       | 0.0               |
+| production_rush | 1.00     | 679          | 500.0       | 0.0               |
+| balanced        | 1.00     | 650          | 500.0       | 0.0               |
+| gold_rush       | 1.00     | 650          | 500.0       | 0.0               |
 
 ## Delta vs Baseline
-No change — all metrics identical to baseline. The gating framework only affects Phase B building types (Forge, Brewery, Workshop) which do not yet exist as BuildingType values.
+No change -- all strategies perform identically to baseline. The new upgrade is only active when
+unlocked via meta progression; base headless strategies do not unlock it.
 
 ## Acceptance Criteria Results
-- PASS: hasattr(s, 'boss_unlocked_buildings')
-- PASS: 'boss_unlocked_buildings' in json.loads(s.to_json())
-- PASS: hasattr(config, 'BOSS_BUILDING_GATES')
-- PASS: isinstance(config.BOSS_BUILDING_GATES, dict)
-- PASS: serialization roundtrip s.to_json() == GameState.from_json(s.to_json()).to_json()
+- PASS: any(u['id'] == 'auto_research' for u in config.UPGRADES)
+- PASS: hasattr(new_game(), 'auto_research_unlocked')
+- PASS: hasattr(new_game(), 'auto_research_enabled')
+- PASS: 'auto_research_unlocked' in json.loads(new_game().to_json())
+- PASS: Serialization roundtrip: s.to_json() == GameState.from_json(s.to_json()).to_json()
+- PASS: ruff format + ruff check -- all clean
 
 ## PR URL
-https://github.com/Mistborn/ctes-game/pull/12
+https://github.com/Mistborn/ctes-game/pull/13
 
 ## Status
 success
 
 ## Notes
-- ruff format and ruff check both pass cleanly
-- Gate entries are deduplicated on append (only added if not already in list)
+None.
