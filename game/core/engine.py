@@ -181,6 +181,10 @@ def tick(state: GameState) -> GameState:
     # 7. Tutorial hints
     _check_tutorial_hints(state)
 
+    # 7b. Milestone: colonist count threshold
+    if state.colonist_count >= 10:
+        _trigger_milestone(state, "colonists_10", "10 colonists reached!")
+
     # 8. Win / Lose checks
     _check_endgame(state)
 
@@ -485,6 +489,9 @@ def _handle_build_building(state: GameState, action: ActionBuildBuilding) -> Non
     state.next_building_id += 1
     state.buildings.append(building)
 
+    if action.building_type == BuildingType.MARKET:
+        _trigger_milestone(state, "first_market", "First Market built!")
+
 
 def _handle_set_speed(state: GameState, action: ActionSetSpeed) -> None:
     if action.speed_multiplier in config.SPEED_MULTIPLIERS:
@@ -532,6 +539,7 @@ def _handle_research_tech(state: GameState, action: ActionResearchTech) -> None:
         return
     state.gold -= cost
     state.researched_tech_ids.append(action.tech_id)
+    _trigger_milestone(state, f"research_{action.tech_id}", f"Research complete: {tech_def['name']}!")
     # Initialize hex map when cartography is researched
     if action.tech_id == "cartography" and not state.hex_tiles:
         _initialize_hex_map(state)
@@ -588,6 +596,7 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
         state.soldiers = max(0, state.soldiers - config.BOSS_SOLDIERS_LOST_WIN)
         tile["has_boss"] = False
         state.boss_fights_won += 1
+        _trigger_milestone(state, "boss_defeated", "Boss defeated!")
         ring = _ring_distance(action.q, action.r)
         if ring not in state.boss_rings_cleared:
             state.boss_rings_cleared.append(ring)
@@ -674,6 +683,7 @@ def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
     state.planks -= cost.get("planks", 0)
 
     tile["explored"] = True
+    _trigger_milestone(state, "first_hex_explored", "First hex explored!")
 
     rewards = config.HEX_TERRAIN_REWARDS.get(tile["terrain"], {})
     state.food = min(state.food + rewards.get("food", 0), config.FOOD_CAP)
@@ -733,6 +743,21 @@ def _check_tutorial_hints(state: GameState) -> None:
     if hint["hint_id"] not in shown and state.gold > 0.8 * state.win_gold_target:
         _fire(hint["hint_id"], hint["message"])
         shown.add(hint["hint_id"])
+
+
+# ---------------------------------------------------------------------------
+# Milestone helpers
+# ---------------------------------------------------------------------------
+
+
+def _trigger_milestone(state: GameState, milestone_id: str, message: str) -> None:
+    """Append a milestone notification to info_log if not already triggered."""
+    if milestone_id in state.triggered_milestones:
+        return
+    state.triggered_milestones.append(milestone_id)
+    state.info_log.append([state.tick, message, "info"])
+    if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+        state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
 
 
 # ---------------------------------------------------------------------------
