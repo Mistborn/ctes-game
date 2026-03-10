@@ -551,6 +551,13 @@ UPGRADES = [
         "lp_cost": 3,
         "requires": None,
     },
+    {
+        "id": "auto_build",
+        "name": "Master Builder",
+        "description": "Toggle: auto-build productive buildings when flush with resources",
+        "lp_cost": 3,
+        "requires": None,
+    },
 ]
 
 # ---------------------------------------------------------------------------
@@ -565,3 +572,9 @@ AUTO_BALANCE_INTERVAL = 10
 AUTO_BALANCE_LOW_FOOD = 10
 AUTO_BALANCE_HIGH_FOOD = 200
 AUTO_BALANCE_MIN_FARM_WORKERS = 2
+
+# ---------------------------------------------------------------------------
+# Auto-build
+# ---------------------------------------------------------------------------
+AUTO_BUILD_INTERVAL = 30
+AUTO_BUILD_COST_MULTIPLIER = 2.0
