@@ -916,6 +916,36 @@ def _handle_explore_hex(state: GameState, action: ActionExploreHex) -> None:
     state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
     state.planks = min(state.planks + rewards.get("planks", 0), config.PLANKS_CAP)
 
+    # Check for one-time hex events (only fires once per tile, even across save/load)
+    if key not in state.triggered_hex_events:
+        terrain = tile["terrain"]
+        events = config.HEX_EVENTS.get(terrain, [])
+        for event in events:
+            if random.random() < event["probability"]:
+                effects = event["effects"]
+                # Wandering Merchant requires minimum wood to trigger the trade
+                if event["event_id"] == "wandering_merchant":
+                    if state.wood < config.HEX_EVENT_MERCHANT_MIN_WOOD:
+                        break
+                # Apply resource effects
+                state.food = min(max(state.food + effects.get("food", 0), 0.0), config.FOOD_CAP)
+                state.wood = min(max(state.wood + effects.get("wood", 0), 0.0), config.WOOD_CAP)
+                state.gold = min(max(state.gold + effects.get("gold", 0), 0.0), config.GOLD_CAP)
+                state.stone = min(max(state.stone + effects.get("stone", 0), 0.0), config.STONE_CAP)
+                state.planks = min(max(state.planks + effects.get("planks", 0), 0.0), config.PLANKS_CAP)
+                # Special: free colonist
+                if effects.get("colonists", 0) > 0:
+                    for _ in range(effects["colonists"]):
+                        _add_colonist(state)
+                        if state.colonist_count > state.peak_colonists:
+                            state.peak_colonists = state.colonist_count
+                # Log the event
+                state.info_log.append([state.tick, event["description"], "info"])
+                if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+                    state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+                state.triggered_hex_events.append(key)
+                break  # Only one event per hex
+
 
 # ---------------------------------------------------------------------------
 # Tutorial hints
