@@ -629,3 +629,46 @@ AUTO_BALANCE_MIN_FARM_WORKERS = 2
 # ---------------------------------------------------------------------------
 AUTO_BUILD_INTERVAL = 30
 AUTO_BUILD_COST_MULTIPLIER = 2.0
+
+# ---------------------------------------------------------------------------
+# Trading caravan events
+# ---------------------------------------------------------------------------
+CARAVAN_INTERVAL_TICKS = 150
+CARAVAN_OFFER_DURATION_TICKS = 30
+CARAVAN_TRADES = [
+    {
+        "name": "Wood for Gold",
+        "give_resource": "wood",
+        "give_amount": 50,
+        "receive_resource": "gold",
+        "receive_amount": 30,
+    },
+    {
+        "name": "Food for Stone",
+        "give_resource": "food",
+        "give_amount": 60,
+        "receive_resource": "stone",
+        "receive_amount": 40,
+    },
+    {
+        "name": "Planks for Iron",
+        "give_resource": "planks",
+        "give_amount": 20,
+        "receive_resource": "iron",
+        "receive_amount": 15,
+    },
+    {
+        "name": "Stone for Gold",
+        "give_resource": "stone",
+        "give_amount": 40,
+        "receive_resource": "gold",
+        "receive_amount": 25,
+    },
+    {
+        "name": "Iron for Gold",
+        "give_resource": "iron",
+        "give_amount": 10,
+        "receive_resource": "gold",
+        "receive_amount": 35,
+    },
+]

@@ -190,3 +190,10 @@ class ActionFightBoss:
 
     q: int
     r: int
+
+
+@dataclass
+class ActionAcceptTrade:
+    """Player action: accept the current trading caravan offer."""
+
+    pass
