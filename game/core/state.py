@@ -148,6 +148,11 @@ class GameState:
     current_trade: dict | None = None
 
     # -------------------------------------------------------------------
+    # Stockpile bonuses — IDs of currently active stockpile bonuses
+    # -------------------------------------------------------------------
+    active_stockpile_bonuses: List[str] = field(default_factory=list)
+
+    # -------------------------------------------------------------------
     # Seasons — track previous tick's winter state for transition detection
     # -------------------------------------------------------------------
     last_season_was_winter: bool = False
@@ -215,6 +220,7 @@ class GameState:
             "auto_build_unlocked": self.auto_build_unlocked,
             "auto_build_enabled": self.auto_build_enabled,
             "auto_build_timer": self.auto_build_timer,
+            "active_stockpile_bonuses": list(self.active_stockpile_bonuses),
             "last_season_was_winter": self.last_season_was_winter,
             "colony_event_timer": self.colony_event_timer,
             "caravan_timer": self.caravan_timer,
@@ -281,6 +287,7 @@ class GameState:
             auto_build_unlocked=d.get("auto_build_unlocked", False),
             auto_build_enabled=d.get("auto_build_enabled", False),
             auto_build_timer=d.get("auto_build_timer", 0),
+            active_stockpile_bonuses=list(d.get("active_stockpile_bonuses", [])),
             last_season_was_winter=d.get("last_season_was_winter", False),
             colony_event_timer=d.get("colony_event_timer", 0),
             caravan_timer=d.get("caravan_timer", 0),

@@ -687,6 +687,38 @@ COLONY_EVENTS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Stockpile production bonuses
+# ---------------------------------------------------------------------------
+# When a resource exceeds the threshold, the listed bonus becomes active.
+# bonus_type: 'all_production' applies to all buildings; 'market_production' applies to Market only.
+STOCKPILE_BONUSES = [
+    {
+        "id": "well_fed",
+        "resource": "food",
+        "threshold": 200,
+        "bonus_type": "all_production",
+        "bonus_value": 0.05,
+        "name": "Well-Fed Colony",
+    },
+    {
+        "id": "abundant_timber",
+        "resource": "wood",
+        "threshold": 150,
+        "bonus_type": "all_production",
+        "bonus_value": 0.03,
+        "name": "Abundant Timber",
+    },
+    {
+        "id": "merchant_confidence",
+        "resource": "gold",
+        "threshold": 200,
+        "bonus_type": "market_production",
+        "bonus_value": 0.10,
+        "name": "Merchant Confidence",
+    },
+]
+
+# ---------------------------------------------------------------------------
 # Trading caravan events
 # ---------------------------------------------------------------------------
 CARAVAN_INTERVAL_TICKS = 150

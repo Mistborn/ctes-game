@@ -177,6 +177,11 @@ def tick(state: GameState) -> GameState:
     planks_before = state.planks
     iron_before = state.iron
 
+    # 0b. Compute active stockpile bonuses
+    state.active_stockpile_bonuses = [
+        b["id"] for b in config.STOCKPILE_BONUSES if getattr(state, b["resource"]) >= b["threshold"]
+    ]
+
     # 1. Buildings produce resources
     _process_production(state)
 
@@ -315,58 +320,82 @@ def _process_production(state: GameState) -> None:
         drought_curse = next(c for c in config.CURSES if c["curse_id"] == "drought")
         farm_mult *= drought_curse["effect_value"]
 
+    # Stockpile bonuses
+    active_bonuses = state.active_stockpile_bonuses
+    stockpile_all_mult = 1.0 + sum(
+        b["bonus_value"]
+        for b in config.STOCKPILE_BONUSES
+        if b["id"] in active_bonuses and b["bonus_type"] == "all_production"
+    )
+    stockpile_market_mult = 1.0 + sum(
+        b["bonus_value"]
+        for b in config.STOCKPILE_BONUSES
+        if b["id"] in active_bonuses and b["bonus_type"] == "market_production"
+    )
+
     for building in state.buildings:
         workers = building.workers_assigned
         btype = building.building_type
 
         # Passive income (applied regardless of worker count)
         if btype == BuildingType.FARM:
-            state.food += config.FARM_PASSIVE_FOOD_PER_TICK * farm_mult * passive_mult * winter_food_mult
+            state.food += (
+                config.FARM_PASSIVE_FOOD_PER_TICK * farm_mult * passive_mult * winter_food_mult * stockpile_all_mult
+            )
         elif btype == BuildingType.LUMBER_MILL:
-            state.wood += config.LUMBERMILL_PASSIVE_WOOD_PER_TICK * tool_mult * passive_mult
+            state.wood += config.LUMBERMILL_PASSIVE_WOOD_PER_TICK * tool_mult * passive_mult * stockpile_all_mult
         elif btype == BuildingType.QUARRY:
-            state.stone += config.QUARRY_PASSIVE_STONE_PER_TICK * tool_mult * passive_mult
+            state.stone += config.QUARRY_PASSIVE_STONE_PER_TICK * tool_mult * passive_mult * stockpile_all_mult
 
         # Worker-based production
         if workers == 0:
             continue
 
         if btype == BuildingType.FARM:
-            state.food += workers * config.FARM_FOOD_PER_WORKER_PER_TICK * farm_mult * winter_food_mult
+            state.food += (
+                workers * config.FARM_FOOD_PER_WORKER_PER_TICK * farm_mult * winter_food_mult * stockpile_all_mult
+            )
 
         elif btype == BuildingType.LUMBER_MILL:
-            state.wood += workers * config.LUMBERMILL_WOOD_PER_WORKER_PER_TICK * tool_mult
+            state.wood += workers * config.LUMBERMILL_WOOD_PER_WORKER_PER_TICK * tool_mult * stockpile_all_mult
 
         elif btype == BuildingType.QUARRY:
-            state.stone += workers * config.QUARRY_STONE_PER_WORKER_PER_TICK * tool_mult
+            state.stone += workers * config.QUARRY_STONE_PER_WORKER_PER_TICK * tool_mult * stockpile_all_mult
 
         elif btype == BuildingType.SAWMILL:
             # Sawmill converts Wood → Planks
             wood_needed = workers * config.SAWMILL_WOOD_PER_WORKER_PER_TICK
             if state.wood >= wood_needed:
                 state.wood -= wood_needed
-                state.planks += workers * config.SAWMILL_PLANKS_PER_WORKER_PER_TICK * sawmill_mult
+                state.planks += workers * config.SAWMILL_PLANKS_PER_WORKER_PER_TICK * sawmill_mult * stockpile_all_mult
             else:
                 if wood_needed > 0:
                     fraction = state.wood / wood_needed
-                    state.planks += workers * config.SAWMILL_PLANKS_PER_WORKER_PER_TICK * sawmill_mult * fraction
+                    state.planks += (
+                        workers
+                        * config.SAWMILL_PLANKS_PER_WORKER_PER_TICK
+                        * sawmill_mult
+                        * stockpile_all_mult
+                        * fraction
+                    )
                     state.wood = 0.0
 
         elif btype == BuildingType.IRON_MINE:
-            state.iron += workers * config.IRON_MINE_PRODUCTION
+            state.iron += workers * config.IRON_MINE_PRODUCTION * stockpile_all_mult
 
         elif btype == BuildingType.MARKET:
             # Prefer Planks over Wood for gold production (better rate)
+            eff_market_mult = market_mult * stockpile_all_mult * stockpile_market_mult
             planks_needed = workers * config.MARKET_PLANKS_PER_WORKER_PER_TICK
             wood_needed = workers * config.MARKET_WOOD_PER_WORKER_PER_TICK
             if state.planks >= planks_needed:
                 state.planks -= planks_needed
-                state.gold += workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * market_mult
+                state.gold += workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * eff_market_mult
             elif state.planks > 0:
                 # Partial planks: use planks first, then wood for the remainder
                 planks_fraction = state.planks / planks_needed
                 state.gold += (
-                    workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * market_mult * planks_fraction
+                    workers * config.MARKET_GOLD_WITH_PLANKS_PER_WORKER_PER_TICK * eff_market_mult * planks_fraction
                 )
                 state.planks = 0.0
                 # Fill the remaining fraction with wood
@@ -374,19 +403,21 @@ def _process_production(state: GameState) -> None:
                 wood_for_remainder = wood_needed * remaining_fraction
                 if state.wood >= wood_for_remainder:
                     state.wood -= wood_for_remainder
-                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult * remaining_fraction
+                    state.gold += (
+                        workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * eff_market_mult * remaining_fraction
+                    )
                 elif wood_needed > 0:
                     wood_frac = state.wood / wood_needed
-                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult * wood_frac
+                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * eff_market_mult * wood_frac
                     state.wood = 0.0
             elif state.wood >= wood_needed:
                 state.wood -= wood_needed
-                state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult
+                state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * eff_market_mult
             else:
                 # Partial wood operation
                 if wood_needed > 0:
                     fraction = state.wood / wood_needed
-                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult * fraction
+                    state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * eff_market_mult * fraction
                     state.wood = 0.0
 
 
