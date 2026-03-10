@@ -72,6 +72,9 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
         if "auto_research" in unlocked:
             state.auto_research_unlocked = True
             state.auto_research_enabled = True
+        if "auto_explore" in unlocked:
+            state.auto_explore_unlocked = True
+            state.auto_explore_enabled = True
     else:
         starting_colonists = config.STARTING_COLONISTS
 
@@ -186,6 +189,8 @@ def tick(state: GameState) -> GameState:
         _auto_assign_idle_colonists(state)
     if state.auto_research_enabled:
         _auto_research(state)
+    if state.auto_explore_enabled and state.hex_map_unlocked:
+        _auto_explore(state)
 
     # 7. Tutorial hints
     _check_tutorial_hints(state)
@@ -445,6 +450,48 @@ def _auto_research(state: GameState) -> None:
     cheapest = min(unresearched, key=lambda t: t["gold_cost"])
     if cheapest["gold_cost"] * 1.5 <= state.gold:
         _handle_research_tech(state, ActionResearchTech(tech_id=cheapest["tech_id"]))
+
+
+def _auto_explore(state: GameState) -> None:
+    """Every AUTO_EXPLORE_INTERVAL ticks, explore the cheapest adjacent unexplored hex if resources allow."""
+    state.auto_explore_timer += 1
+    if state.auto_explore_timer < config.AUTO_EXPLORE_INTERVAL:
+        return
+    state.auto_explore_timer = 0
+
+    # Collect explorable hexes: unexplored with at least one explored neighbor
+    explorable = []
+    for key, tile in state.hex_tiles.items():
+        if tile.get("explored"):
+            continue
+        q, r = (int(x) for x in key.split(","))
+        if not _has_explored_neighbor(state, q, r):
+            continue
+        ring = _ring_distance(q, r)
+        base_cost = config.HEX_EXPLORE_COST_BY_RING.get(ring, {})
+        if "scarce_lands" in state.active_curses:
+            curse = next(c for c in config.CURSES if c["curse_id"] == "scarce_lands")
+            cost = {k: v * curse["effect_value"] for k, v in base_cost.items()}
+        else:
+            cost = base_cost
+        total_cost = sum(cost.values())
+        explorable.append((total_cost, q, r, cost))
+
+    if not explorable:
+        return
+
+    # Sort by total cost ascending, pick cheapest
+    explorable.sort(key=lambda x: x[0])
+    total_cost, q, r, cost = explorable[0]
+
+    # Attempt to explore if resources suffice
+    if (
+        state.wood >= cost.get("wood", 0)
+        and state.stone >= cost.get("stone", 0)
+        and state.gold >= cost.get("gold", 0)
+        and state.planks >= cost.get("planks", 0)
+    ):
+        _handle_explore_hex(state, ActionExploreHex(q=q, r=r))
 
 
 # ---------------------------------------------------------------------------

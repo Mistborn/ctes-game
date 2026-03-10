@@ -537,4 +537,16 @@ UPGRADES = [
         "lp_cost": 2,
         "requires": None,
     },
+    {
+        "id": "auto_explore",
+        "name": "Pioneer Spirit",
+        "description": "Toggle: auto-explore cheapest hex every 20 ticks",
+        "lp_cost": 3,
+        "requires": None,
+    },
 ]
+
+# ---------------------------------------------------------------------------
+# Auto-explore
+# ---------------------------------------------------------------------------
+AUTO_EXPLORE_INTERVAL = 20
