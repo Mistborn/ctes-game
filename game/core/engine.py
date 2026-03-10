@@ -20,6 +20,7 @@ from game.core.entities import (
     ActionBuildBuilding,
     ActionExploreHex,
     ActionFightBoss,
+    ActionHireMercenary,
     ActionRecruitCitizen,
     ActionResearchTech,
     ActionSetSpeed,
@@ -182,6 +183,9 @@ def tick(state: GameState) -> GameState:
     # 1b. Explored hex passive income
     _process_hex_passive_income(state)
 
+    # 1c. Mercenary timers
+    _process_mercenaries(state)
+
     # 2. Colonists consume food
     _process_consumption(state)
 
@@ -273,6 +277,8 @@ def apply_action(state: GameState, action) -> GameState:
         _handle_fight_boss(state, action)
     elif isinstance(action, ActionAcceptTrade):
         _handle_accept_trade(state)
+    elif isinstance(action, ActionHireMercenary):
+        _handle_hire_mercenary(state)
 
     return state
 
@@ -830,6 +836,52 @@ def _handle_train_soldier(state: GameState) -> None:
     state.soldiers += 1
 
 
+def _process_mercenaries(state: GameState) -> None:
+    """Decrement mercenary timers and remove any that have expired."""
+    expired = 0
+    updated = []
+    for timer in state.mercenaries:
+        timer -= 1
+        if timer <= 0:
+            expired += 1
+        else:
+            updated.append(timer)
+    state.mercenaries = updated
+    for _ in range(expired):
+        state.info_log.append([state.tick, "A mercenary's contract has expired.", "info"])
+        if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+            state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+
+
+def _handle_hire_mercenary(state: GameState) -> None:
+    if len(state.mercenaries) >= config.MERCENARY_MAX:
+        state.info_log.append(
+            [
+                state.tick,
+                f"Cannot hire mercenary: already at cap ({config.MERCENARY_MAX}/{config.MERCENARY_MAX}).",
+                "info",
+            ]
+        )
+        if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+            state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+        return
+    if state.gold < config.MERCENARY_COST_GOLD:
+        state.info_log.append(
+            [state.tick, f"Cannot hire mercenary: insufficient gold (need {config.MERCENARY_COST_GOLD}).", "info"]
+        )
+        if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+            state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+        return
+    state.gold -= config.MERCENARY_COST_GOLD
+    state.mercenaries.append(config.MERCENARY_DURATION_TICKS)
+    count = len(state.mercenaries)
+    duration = config.MERCENARY_DURATION_TICKS
+    max_mercs = config.MERCENARY_MAX
+    state.info_log.append([state.tick, f"Hired a mercenary for {duration} ticks! ({count}/{max_mercs})", "info"])
+    if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+        state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+
+
 def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
     if state.boss_fight_cooldown > 0:
         return
@@ -854,10 +906,11 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
         soldiers_lost_win = config.BOSS_SOLDIERS_LOST_WIN
         soldiers_lost_lose = config.BOSS_SOLDIERS_LOST_LOSE
 
-    if state.soldiers < min_soldiers:
+    effective = state.soldiers + len(state.mercenaries)
+    if effective < min_soldiers:
         return
 
-    win_prob = state.soldiers / (state.soldiers + strength)
+    win_prob = effective / (effective + strength)
     won = random.random() < win_prob
 
     if won:
@@ -874,7 +927,11 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
         state.gold = min(state.gold + rewards.get("gold", 0), config.GOLD_CAP)
         state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
     else:
-        state.soldiers = max(0, state.soldiers - soldiers_lost_lose)
+        # Mercenaries die first, then regular soldiers
+        mercs_lost = min(soldiers_lost_lose, len(state.mercenaries))
+        state.mercenaries = state.mercenaries[mercs_lost:]
+        remainder = soldiers_lost_lose - mercs_lost
+        state.soldiers = max(0, state.soldiers - remainder)
         state.boss_fight_cooldown = config.BOSS_FIGHT_COOLDOWN_TICKS
 
 
