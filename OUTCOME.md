@@ -41,7 +41,7 @@ All strategies win faster due to supplemental passive income from explored hexes
 - [x] `ruff format` + `ruff check` — PASS
 
 ## PR URL
-(to be filled after push)
+https://github.com/Mistborn/ctes-game/pull/21
 
 ## Status
 success
