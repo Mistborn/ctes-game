@@ -1,15 +1,15 @@
 # Outcome
 
 ## Summary
-Implemented Feature D2: 'Efficient Governance' meta upgrade (3 LP). When toggled on, the engine checks every 10 ticks: if food < 10, it moves one worker from the least-critical building (market > sawmill > quarry priority) to a farm; if food > 200 and the farm has more than 2 workers, it moves one farm worker to a building with open slots.
+Implemented Feature D3: Building auto-upgrade ("Master Builder"). Added the `auto_build` LP upgrade (3 LP) that automatically builds a second copy of the most productive building type every 30 ticks when resources are ≥ 2× the next build cost and there are idle colonists available.
 
 ## Changes Made
-- Added `AUTO_BALANCE_INTERVAL=10`, `AUTO_BALANCE_LOW_FOOD=10`, `AUTO_BALANCE_HIGH_FOOD=200`, `AUTO_BALANCE_MIN_FARM_WORKERS=2` constants to config.py
-- Added `auto_balance` entry to `config.UPGRADES` (id='auto_balance', name='Efficient Governance', lp_cost=3, requires=None)
-- Added `auto_balance_unlocked`, `auto_balance_enabled`, `auto_balance_timer` fields to `GameState` with full `to_dict`/`from_dict` support
-- Wired `auto_balance` in `engine.new_game()` following the auto_hire pattern
-- Added `_auto_balance()` call in `engine.tick()` automation block
-- Implemented `_auto_balance()` function in engine.py
+- Added `auto_build` upgrade entry to `config.UPGRADES`
+- Added `AUTO_BUILD_INTERVAL = 30` and `AUTO_BUILD_COST_MULTIPLIER = 2.0` constants to `config.py`
+- Added `auto_build_unlocked`, `auto_build_enabled`, `auto_build_timer` fields to `GameState`
+- Updated `to_dict()` and `from_dict()` for the new fields
+- Added `_auto_build()` helper in `engine.py` following the auto_balance/auto_explore timer pattern
+- Wired `auto_build` into `new_game()` (meta upgrade check) and `tick()` (automation step)
 
 ## Files Modified
 - `game/core/config.py`
@@ -25,19 +25,19 @@ Implemented Feature D2: 'Efficient Governance' meta upgrade (3 LP). When toggled
 | gold_rush | 1.00 | 650 | 500.0 | 0.0 |
 
 ## Delta vs Baseline
-No change — all strategies retain 100% win rate and identical tick counts. The auto-balance feature is gated behind a meta upgrade (not unlocked in headless baseline runs), so baseline strategies are unaffected.
+No change in win rate or tick counts. The auto_build upgrade is not activated by default in headless strategies (meta upgrades require unlocking), so baseline metrics are preserved.
 
 ## Acceptance Criteria Results
-- `python -c "from game.core import config; assert any(u['id'] == 'auto_balance' for u in config.UPGRADES)"` → **PASS**
-- `python -c "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_balance_unlocked')"` → **PASS**
-- `python -c "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_balance_unlocked' in d"` → **PASS**
+- `python -c "from game.core import config; assert any(u['id'] == 'auto_build' for u in config.UPGRADES)"` → **PASS**
+- `python -c "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_build_unlocked')"` → **PASS**
+- `python -c "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_build_unlocked' in d"` → **PASS**
 - Serialization roundtrip: `s.to_json() == GameState.from_json(s.to_json()).to_json()` → **PASS**
 
 ## PR URL
-https://github.com/Mistborn/ctes-game/pull/17
+https://github.com/Mistborn/ctes-game/pull/18
 
 ## Status
 success
 
 ## Notes
-Implementation follows the existing auto_hire/auto_explore patterns exactly. The `_auto_balance()` function uses a timer identical to `_auto_explore()`. Worker moves are done by updating both the colonist's `assigned_building_id` and the building's `workers_assigned` counter, consistent with `_handle_assign_worker()`.
+The `_auto_build()` function skips BARRACKS (no production output tracked in `production_rates`) and handles IRON_MINE's stone-based cost separately from wood-only buildings. Building type eligibility requires at least one existing building of that type with workers assigned (so output > 0).
