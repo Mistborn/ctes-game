@@ -544,9 +544,24 @@ UPGRADES = [
         "lp_cost": 3,
         "requires": None,
     },
+    {
+        "id": "auto_balance",
+        "name": "Efficient Governance",
+        "description": "Toggle: rebalance workers when food is critically low or excess",
+        "lp_cost": 3,
+        "requires": None,
+    },
 ]
 
 # ---------------------------------------------------------------------------
 # Auto-explore
 # ---------------------------------------------------------------------------
 AUTO_EXPLORE_INTERVAL = 20
+
+# ---------------------------------------------------------------------------
+# Auto-balance
+# ---------------------------------------------------------------------------
+AUTO_BALANCE_INTERVAL = 10
+AUTO_BALANCE_LOW_FOOD = 10
+AUTO_BALANCE_HIGH_FOOD = 200
+AUTO_BALANCE_MIN_FARM_WORKERS = 2

@@ -123,6 +123,9 @@ class GameState:
     auto_explore_unlocked: bool = False
     auto_explore_enabled: bool = False
     auto_explore_timer: int = 0
+    auto_balance_unlocked: bool = False
+    auto_balance_enabled: bool = False
+    auto_balance_timer: int = 0
 
     # -------------------------------------------------------------------
     # Game status
@@ -179,6 +182,9 @@ class GameState:
             "auto_explore_unlocked": self.auto_explore_unlocked,
             "auto_explore_enabled": self.auto_explore_enabled,
             "auto_explore_timer": self.auto_explore_timer,
+            "auto_balance_unlocked": self.auto_balance_unlocked,
+            "auto_balance_enabled": self.auto_balance_enabled,
+            "auto_balance_timer": self.auto_balance_timer,
             "info_log": [list(e) for e in self.info_log],
             "shown_hints": list(self.shown_hints),
             "triggered_milestones": list(self.triggered_milestones),
@@ -233,6 +239,9 @@ class GameState:
             auto_explore_unlocked=d.get("auto_explore_unlocked", False),
             auto_explore_enabled=d.get("auto_explore_enabled", False),
             auto_explore_timer=d.get("auto_explore_timer", 0),
+            auto_balance_unlocked=d.get("auto_balance_unlocked", False),
+            auto_balance_enabled=d.get("auto_balance_enabled", False),
+            auto_balance_timer=d.get("auto_balance_timer", 0),
         )
         gs.info_log = [list(e) for e in d.get("info_log", [])]
         gs.shown_hints = list(d.get("shown_hints", []))

@@ -75,6 +75,9 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
         if "auto_explore" in unlocked:
             state.auto_explore_unlocked = True
             state.auto_explore_enabled = True
+        if "auto_balance" in unlocked:
+            state.auto_balance_unlocked = True
+            state.auto_balance_enabled = True
     else:
         starting_colonists = config.STARTING_COLONISTS
 
@@ -191,6 +194,8 @@ def tick(state: GameState) -> GameState:
         _auto_research(state)
     if state.auto_explore_enabled and state.hex_map_unlocked:
         _auto_explore(state)
+    if state.auto_balance_enabled:
+        _auto_balance(state)
 
     # 7. Tutorial hints
     _check_tutorial_hints(state)
@@ -492,6 +497,59 @@ def _auto_explore(state: GameState) -> None:
         and state.planks >= cost.get("planks", 0)
     ):
         _handle_explore_hex(state, ActionExploreHex(q=q, r=r))
+
+
+def _auto_balance(state: GameState) -> None:
+    """Every AUTO_BALANCE_INTERVAL ticks, rebalance workers based on food level."""
+    state.auto_balance_timer += 1
+    if state.auto_balance_timer < config.AUTO_BALANCE_INTERVAL:
+        return
+    state.auto_balance_timer = 0
+
+    farms = [b for b in state.buildings if b.building_type == BuildingType.FARM]
+    if not farms:
+        return
+    farm = farms[0]
+
+    if state.food < config.AUTO_BALANCE_LOW_FOOD:
+        # Move one worker from least-critical building (market > sawmill > quarry) to farm
+        max_farm_workers = _max_workers_for(BuildingType.FARM)
+        if farm.workers_assigned >= max_farm_workers:
+            return
+        for btype in [BuildingType.MARKET, BuildingType.SAWMILL, BuildingType.QUARRY]:
+            source = next(
+                (b for b in state.buildings if b.building_type == btype and b.workers_assigned > 0),
+                None,
+            )
+            if source is not None:
+                worker = next(
+                    (c for c in state.colonists if c is not None and c.assigned_building_id == source.id),
+                    None,
+                )
+                if worker is not None:
+                    worker.assigned_building_id = farm.id
+                    source.workers_assigned -= 1
+                    farm.workers_assigned += 1
+                    return
+
+    elif state.food > config.AUTO_BALANCE_HIGH_FOOD and farm.workers_assigned > config.AUTO_BALANCE_MIN_FARM_WORKERS:
+        # Move one farm worker to a building with open slots
+        for building in state.buildings:
+            if building.id == farm.id:
+                continue
+            max_w = _max_workers_for(building.building_type)
+            if max_w == 0:
+                continue
+            if building.workers_assigned < max_w:
+                worker = next(
+                    (c for c in state.colonists if c is not None and c.assigned_building_id == farm.id),
+                    None,
+                )
+                if worker is not None:
+                    worker.assigned_building_id = building.id
+                    farm.workers_assigned -= 1
+                    building.workers_assigned += 1
+                    return
 
 
 # ---------------------------------------------------------------------------
