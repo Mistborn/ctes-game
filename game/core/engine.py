@@ -127,6 +127,10 @@ def tick(state: GameState) -> GameState:
 
     state.tick += 1
 
+    # Decrement boss fight cooldown
+    if state.boss_fight_cooldown > 0:
+        state.boss_fight_cooldown -= 1
+
     # Detect season transitions and add log messages
     if state.tick > 1:
         prev_season = get_season(state.tick - 1)
@@ -606,6 +610,8 @@ def _handle_train_soldier(state: GameState) -> None:
 
 
 def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
+    if state.boss_fight_cooldown > 0:
+        return
     key = f"{action.q},{action.r}"
     tile = state.hex_tiles.get(key)
     if tile is None or not tile.get("explored") or not tile.get("has_boss"):
@@ -648,6 +654,7 @@ def _handle_fight_boss(state: GameState, action: ActionFightBoss) -> None:
         state.stone = min(state.stone + rewards.get("stone", 0), config.STONE_CAP)
     else:
         state.soldiers = max(0, state.soldiers - soldiers_lost_lose)
+        state.boss_fight_cooldown = config.BOSS_FIGHT_COOLDOWN_TICKS
 
 
 # ---------------------------------------------------------------------------

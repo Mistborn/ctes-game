@@ -324,6 +324,9 @@ BARRACKS_MAX_SOLDIERS = 20
 # Soldier training
 TRAIN_SOLDIER_COST = {"food": 10, "iron": 5}
 
+# Boss fight cooldown after a failed attempt
+BOSS_FIGHT_COOLDOWN_TICKS = 50
+
 # Boss fight — Tier 1 (ring 2)
 BOSS_MIN_SOLDIERS = 5  # minimum soldiers required to attempt
 BOSS_STRENGTH = 8  # lower = easier; win_prob = soldiers / (soldiers + BOSS_STRENGTH)
