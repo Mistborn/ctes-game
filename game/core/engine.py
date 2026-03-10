@@ -147,6 +147,26 @@ def tick(state: GameState) -> GameState:
         if curr_season != prev_season:
             _add_season_log(state, curr_season)
 
+    # Seasonal harvest bonuses (fire once at each season transition)
+    is_winter = _is_winter_for_state(state)
+    if not state.last_season_was_winter and is_winter:
+        # Summer → Winter: harvest festival
+        if state.food > config.HARVEST_FOOD_THRESHOLD:
+            amount = int(state.food * config.HARVEST_GOLD_FRACTION)
+            state.gold += amount
+            state.info_log.append([state.tick, f"Harvest festival! Gained {amount} gold from food surplus.", "info"])
+            if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+                state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+    elif state.last_season_was_winter and not is_winter:
+        # Winter → Summer: spring crafting
+        if state.wood > config.SPRING_WOOD_THRESHOLD:
+            amount = int(state.wood * config.SPRING_PLANKS_FRACTION)
+            state.planks += amount
+            state.info_log.append([state.tick, f"Spring crafting! Gained {amount} planks from stored wood.", "info"])
+            if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+                state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+    state.last_season_was_winter = is_winter
+
     # Snapshot resources before tick for rate calculation
     food_before = state.food
     wood_before = state.wood
