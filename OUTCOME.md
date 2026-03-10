@@ -1,13 +1,12 @@
 # Outcome
 
 ## Summary
-Implemented a 50-tick cooldown after a failed boss fight. The player cannot re-attempt a boss fight until the cooldown expires.
+Implemented the **Pioneer Spirit** auto-explore meta upgrade (Feature D1). When unlocked (3 LP) and toggled on, the game automatically explores the cheapest adjacent unexplored hex every 20 ticks when resources allow.
 
 ## Changes Made
-- **config.py**: Added `BOSS_FIGHT_COOLDOWN_TICKS = 50`
-- **state.py**: Added `boss_fight_cooldown: int = 0` field; updated `to_dict()` and `from_dict()`
-- **engine.py** (`tick`): Decrement `boss_fight_cooldown` by 1 each tick when > 0
-- **engine.py** (`_handle_fight_boss`): Return early if `boss_fight_cooldown > 0`; set `boss_fight_cooldown = config.BOSS_FIGHT_COOLDOWN_TICKS` after a failed fight
+- `game/core/config.py`: Added `AUTO_EXPLORE_INTERVAL = 20` and a new `auto_explore` entry to `UPGRADES`
+- `game/core/state.py`: Added `auto_explore_unlocked`, `auto_explore_enabled` (bools), and `auto_explore_timer` (int) fields; updated `to_dict()` and `from_dict()`
+- `game/core/engine.py`: `new_game()` sets unlocked+enabled when meta has `auto_explore`; `tick()` calls `_auto_explore()` after the auto_research block; new `_auto_explore()` helper increments timer every tick, resets at interval, finds all explorable hexes (unexplored with explored neighbor), sorts by total cost ascending, attempts to explore the cheapest if resources suffice
 
 ## Files Modified
 - `game/core/config.py`
@@ -23,17 +22,17 @@ Implemented a 50-tick cooldown after a failed boss fight. The player cannot re-a
 | gold_rush | 1.00 | 650 | 500.0 | 0.0 |
 
 ## Delta vs Baseline
-No change — all strategies win at identical tick counts and gold. The boss cooldown only affects failed fight attempts; headless strategies don't fight bosses, so metrics are unchanged.
+No change — metrics are identical to baseline. The feature only activates when the meta upgrade is unlocked, which headless strategies do not use.
 
 ## Acceptance Criteria Results
-- ✅ `hasattr(new_game(), 'boss_fight_cooldown')` — passes
-- ✅ `'boss_fight_cooldown' in json.loads(new_game().to_json())` — passes
-- ✅ `config.BOSS_FIGHT_COOLDOWN_TICKS == 50` — passes
-- ✅ Serialization roundtrip: `s.to_json() == GameState.from_json(s.to_json()).to_json()` — passes
-- ✅ `ruff format` + `ruff check` — passes (pre-commit hooks passed)
+- ✅ `python -c "from game.core import config; assert any(u['id'] == 'auto_explore' for u in config.UPGRADES)"`
+- ✅ `python -c "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_explore_unlocked')"`
+- ✅ `python -c "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_explore_enabled')"`
+- ✅ `python -c "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_explore_unlocked' in d"`
+- ✅ Serialization roundtrip: `s.to_json() == GameState.from_json(s.to_json()).to_json()`
 
 ## PR URL
-https://github.com/Mistborn/ctes-game/pull/15
+https://github.com/Mistborn/ctes-game/pull/16
 
 ## Status
 success
