@@ -306,6 +306,39 @@ HEX_BOSS_BORDER_COLOR = (200, 40, 40)
 # (No longer used — boss placement is now deterministic; kept as a tombstone.)
 # HEX_BOSS_CHANCE = 0.15
 
+# One-time events triggered on exploration per terrain type.
+# Each entry: event_id, probability (0-1), description, effects (resource deltas).
+# Special effect keys: "colonists" adds a free colonist.
+# Wandering Merchant requires wood >= 30 to trigger (checked in engine).
+HEX_EVENTS: dict = {
+    "forest": [
+        {
+            "event_id": "wandering_merchant",
+            "probability": 0.20,
+            "description": "Wandering Merchant: traded 30 wood for 20 gold!",
+            "effects": {"wood": -30, "gold": 20},
+        }
+    ],
+    "ruins": [
+        {
+            "event_id": "ancient_cache",
+            "probability": 0.30,
+            "description": "Ancient Cache: +50 bonus gold discovered!",
+            "effects": {"gold": 50},
+        }
+    ],
+    "plains": [
+        {
+            "event_id": "refugee_camp",
+            "probability": 0.15,
+            "description": "Refugee Camp: gained 1 free colonist!",
+            "effects": {"colonists": 1},
+        }
+    ],
+}
+# Wandering Merchant minimum wood required to trigger the trade
+HEX_EVENT_MERCHANT_MIN_WOOD = 30
+
 # ---------------------------------------------------------------------------
 # Iron resource
 # ---------------------------------------------------------------------------

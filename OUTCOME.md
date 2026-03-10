@@ -1,15 +1,12 @@
 # Outcome
 
 ## Summary
-Implemented Feature D3: Building auto-upgrade ("Master Builder"). Added the `auto_build` LP upgrade (3 LP) that automatically builds a second copy of the most productive building type every 30 ticks when resources are ≥ 2× the next build cost and there are idle colonists available.
+Implemented hex map exploration events (Feature E1). When exploring certain hex terrain types, a one-time random event may fire: Wandering Merchant (forest, 20%), Ancient Cache (ruins, 30%), or Refugee Camp (plains, 15%). Events resolve instantly, are logged to the info log, and are tracked via `triggered_hex_events` to prevent re-triggering on save/load.
 
 ## Changes Made
-- Added `auto_build` upgrade entry to `config.UPGRADES`
-- Added `AUTO_BUILD_INTERVAL = 30` and `AUTO_BUILD_COST_MULTIPLIER = 2.0` constants to `config.py`
-- Added `auto_build_unlocked`, `auto_build_enabled`, `auto_build_timer` fields to `GameState`
-- Updated `to_dict()` and `from_dict()` for the new fields
-- Added `_auto_build()` helper in `engine.py` following the auto_balance/auto_explore timer pattern
-- Wired `auto_build` into `new_game()` (meta upgrade check) and `tick()` (automation step)
+- **config.py**: Added `HEX_EVENTS` dict mapping terrain to list of `{event_id, probability, description, effects}`. Added `HEX_EVENT_MERCHANT_MIN_WOOD = 30` constant.
+- **state.py**: Added `triggered_hex_events: List[str]` field; updated `to_dict` and `from_dict`.
+- **engine.py**: Extended `_handle_explore_hex` — after normal terrain rewards, iterates HEX_EVENTS for the terrain, rolls random, applies resource/colonist effects, logs to info_log, appends hex key to triggered_hex_events.
 
 ## Files Modified
 - `game/core/config.py`
@@ -25,19 +22,20 @@ Implemented Feature D3: Building auto-upgrade ("Master Builder"). Added the `aut
 | gold_rush | 1.00 | 650 | 500.0 | 0.0 |
 
 ## Delta vs Baseline
-No change in win rate or tick counts. The auto_build upgrade is not activated by default in headless strategies (meta upgrades require unlocking), so baseline metrics are preserved.
+No change — all strategies identical to baseline. Headless strategies do not explore hexes, so events never fire.
 
 ## Acceptance Criteria Results
-- `python -c "from game.core import config; assert any(u['id'] == 'auto_build' for u in config.UPGRADES)"` → **PASS**
-- `python -c "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_build_unlocked')"` → **PASS**
-- `python -c "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_build_unlocked' in d"` → **PASS**
-- Serialization roundtrip: `s.to_json() == GameState.from_json(s.to_json()).to_json()` → **PASS**
+- PASS: `hasattr(s, 'triggered_hex_events')`
+- PASS: `'triggered_hex_events' in json.loads(s.to_json())`
+- PASS: `hasattr(config, 'HEX_EVENTS')`
+- PASS: Serialization roundtrip `s.to_json() == GameState.from_json(s.to_json()).to_json()`
+- PASS: `ruff format` + `ruff check` — all checks passed
 
 ## PR URL
-https://github.com/Mistborn/ctes-game/pull/18
+https://github.com/Mistborn/ctes-game/pull/19
 
 ## Status
 success
 
 ## Notes
-The `_auto_build()` function skips BARRACKS (no production output tracked in `production_rates`) and handles IRON_MINE's stone-based cost separately from wood-only buildings. Building type eligibility requires at least one existing building of that type with workers assigned (so output > 0).
+The Wandering Merchant event requires wood >= 30 before triggering to prevent negative resources. triggered_hex_events uses "q,r" string keys matching the hex_tiles dict format for correct deduplication across save/load.

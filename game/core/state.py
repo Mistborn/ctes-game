@@ -100,6 +100,9 @@ class GameState:
     # -------------------------------------------------------------------
     hex_tiles: dict = field(default_factory=dict)
 
+    # Keys ("q,r") where a hex event has already fired — prevents re-triggering on load
+    triggered_hex_events: List[str] = field(default_factory=list)
+
     # -------------------------------------------------------------------
     # Roguelite / meta
     # -------------------------------------------------------------------
@@ -176,6 +179,7 @@ class GameState:
             "market_gold_bonus_mult": self.market_gold_bonus_mult,
             "active_curses": list(self.active_curses),
             "hex_tiles": self.hex_tiles,
+            "triggered_hex_events": list(self.triggered_hex_events),
             "auto_hire_unlocked": self.auto_hire_unlocked,
             "auto_hire_enabled": self.auto_hire_enabled,
             "auto_assign_unlocked": self.auto_assign_unlocked,
@@ -236,6 +240,7 @@ class GameState:
             market_gold_bonus_mult=d.get("market_gold_bonus_mult", 1.0),
             active_curses=list(d.get("active_curses", [])),
             hex_tiles=d.get("hex_tiles", {}),
+            triggered_hex_events=list(d.get("triggered_hex_events", [])),
             auto_hire_unlocked=d.get("auto_hire_unlocked", False),
             auto_hire_enabled=d.get("auto_hire_enabled", False),
             auto_assign_unlocked=d.get("auto_assign_unlocked", False),
