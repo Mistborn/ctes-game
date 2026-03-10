@@ -236,6 +236,9 @@ def tick(state: GameState) -> GameState:
     # 7c. Trading caravan
     _process_caravan(state)
 
+    # 7d. Colony random events
+    _process_colony_event(state)
+
     # 8. Win / Lose checks
     _check_endgame(state)
 
@@ -1125,6 +1128,60 @@ def _handle_accept_trade(state: GameState) -> None:
     setattr(state, receive_resource, getattr(state, receive_resource) + receive_amount)
     state.current_trade = None
     state.info_log.append([state.tick, "Trade completed!", "info"])
+    if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+        state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+
+
+# ---------------------------------------------------------------------------
+# Colony random events
+# ---------------------------------------------------------------------------
+
+
+def _process_colony_event(state: GameState) -> None:
+    """Every COLONY_EVENT_INTERVAL ticks, fire a random colony event."""
+    state.colony_event_timer += 1
+    if state.colony_event_timer < config.COLONY_EVENT_INTERVAL:
+        return
+    state.colony_event_timer = 0
+
+    event = random.choice(config.COLONY_EVENTS)
+    effect = event["effect"]
+    amount = event["amount"]
+
+    if effect == "lose_colonist":
+        # Skip if only 1 colonist remains
+        if state.colonist_count <= 1:
+            return
+        # Find an unassigned (idle) colonist to remove
+        idle = next((c for c in state.colonists if c is not None and c.assigned_building_id is None), None)
+        if idle is not None:
+            state.colonists = [c for c in state.colonists if c.id != idle.id]
+        else:
+            # Remove any colonist (assigned), updating building worker count
+            target = next((c for c in state.colonists if c is not None), None)
+            if target is not None:
+                if target.assigned_building_id is not None:
+                    building = state.building_by_id(target.assigned_building_id)
+                    if building and building.workers_assigned > 0:
+                        building.workers_assigned -= 1
+                state.colonists = [c for c in state.colonists if c.id != target.id]
+
+    elif effect == "gain_colonist":
+        _add_colonist(state)
+        if state.colonist_count > state.peak_colonists:
+            state.peak_colonists = state.colonist_count
+
+    elif effect == "gain_food":
+        state.food = min(state.food + amount, config.FOOD_CAP)
+
+    elif effect == "gain_gold":
+        state.gold = min(state.gold + amount, config.GOLD_CAP)
+
+    elif effect == "lose_food":
+        state.food = max(state.food - amount, 0.0)
+
+    msg = event["message"].format(amount=amount)
+    state.info_log.append([state.tick, msg, "info"])
     if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
         state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
 

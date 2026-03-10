@@ -134,6 +134,11 @@ class GameState:
     auto_build_timer: int = 0
 
     # -------------------------------------------------------------------
+    # Colony random events
+    # -------------------------------------------------------------------
+    colony_event_timer: int = 0
+
+    # -------------------------------------------------------------------
     # Trading caravan
     # -------------------------------------------------------------------
     caravan_timer: int = 0
@@ -208,6 +213,7 @@ class GameState:
             "auto_build_enabled": self.auto_build_enabled,
             "auto_build_timer": self.auto_build_timer,
             "last_season_was_winter": self.last_season_was_winter,
+            "colony_event_timer": self.colony_event_timer,
             "caravan_timer": self.caravan_timer,
             "current_trade": self.current_trade,
             "info_log": [list(e) for e in self.info_log],
@@ -272,6 +278,7 @@ class GameState:
             auto_build_enabled=d.get("auto_build_enabled", False),
             auto_build_timer=d.get("auto_build_timer", 0),
             last_season_was_winter=d.get("last_season_was_winter", False),
+            colony_event_timer=d.get("colony_event_timer", 0),
             caravan_timer=d.get("caravan_timer", 0),
             current_trade=d.get("current_trade", None),
         )

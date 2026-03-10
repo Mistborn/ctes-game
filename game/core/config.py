@@ -631,6 +631,55 @@ AUTO_BUILD_INTERVAL = 30
 AUTO_BUILD_COST_MULTIPLIER = 2.0
 
 # ---------------------------------------------------------------------------
+# Colony random events
+# ---------------------------------------------------------------------------
+COLONY_EVENT_INTERVAL = 200
+COLONY_EVENTS = [
+    {
+        "id": "plague",
+        "name": "Plague Outbreak",
+        "message": "A plague sweeps through the colony! Lost a colonist.",
+        "effect": "lose_colonist",
+        "amount": 1,
+    },
+    {
+        "id": "baby_boom",
+        "name": "Baby Boom",
+        "message": "A wave of new births! Gained a colonist.",
+        "effect": "gain_colonist",
+        "amount": 1,
+    },
+    {
+        "id": "bountiful_harvest",
+        "name": "Bountiful Harvest",
+        "message": "An unexpected bumper crop! Gained {amount} food.",
+        "effect": "gain_food",
+        "amount": 50,
+    },
+    {
+        "id": "gold_discovery",
+        "name": "Gold Discovery",
+        "message": "Colonists found a gold vein! Gained {amount} gold.",
+        "effect": "gain_gold",
+        "amount": 30,
+    },
+    {
+        "id": "supply_rot",
+        "name": "Supply Rot",
+        "message": "Stored supplies have rotted! Lost {amount} food.",
+        "effect": "lose_food",
+        "amount": 30,
+    },
+    {
+        "id": "skilled_immigrant",
+        "name": "Skilled Immigrant",
+        "message": "A skilled worker arrives seeking shelter! Gained a colonist.",
+        "effect": "gain_colonist",
+        "amount": 1,
+    },
+]
+
+# ---------------------------------------------------------------------------
 # Trading caravan events
 # ---------------------------------------------------------------------------
 CARAVAN_INTERVAL_TICKS = 150
