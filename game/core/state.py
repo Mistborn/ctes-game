@@ -72,6 +72,8 @@ class GameState:
     boss_rings_cleared: List[int] = field(default_factory=list)
     # Building type value strings unlocked by killing bosses (populated by BOSS_BUILDING_GATES)
     boss_unlocked_buildings: List[str] = field(default_factory=list)
+    # Mercenaries: each int is a remaining-ticks countdown timer
+    mercenaries: List[int] = field(default_factory=list)
 
     # -------------------------------------------------------------------
     # Info log — seasonal/event messages shown in the left sidebar
@@ -187,6 +189,7 @@ class GameState:
             "boss_fight_cooldown": self.boss_fight_cooldown,
             "boss_rings_cleared": list(self.boss_rings_cleared),
             "boss_unlocked_buildings": list(self.boss_unlocked_buildings),
+            "mercenaries": list(self.mercenaries),
             "status": self.status.value,
             "paused": self.paused,
             "researched_tech_ids": list(self.researched_tech_ids),
@@ -252,6 +255,7 @@ class GameState:
             boss_fight_cooldown=d.get("boss_fight_cooldown", 0),
             boss_rings_cleared=list(d.get("boss_rings_cleared", [])),
             boss_unlocked_buildings=list(d.get("boss_unlocked_buildings", [])),
+            mercenaries=list(d.get("mercenaries", [])),
             status=GameStatus(d["status"]),
             paused=d.get("paused", False),
             researched_tech_ids=list(d.get("researched_tech_ids", [])),

@@ -197,3 +197,10 @@ class ActionAcceptTrade:
     """Player action: accept the current trading caravan offer."""
 
     pass
+
+
+@dataclass
+class ActionHireMercenary:
+    """Player action: spend gold to hire a temporary mercenary soldier."""
+
+    pass
