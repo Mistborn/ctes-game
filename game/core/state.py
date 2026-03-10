@@ -134,6 +134,11 @@ class GameState:
     auto_build_timer: int = 0
 
     # -------------------------------------------------------------------
+    # Seasons — track previous tick's winter state for transition detection
+    # -------------------------------------------------------------------
+    last_season_was_winter: bool = False
+
+    # -------------------------------------------------------------------
     # Game status
     # -------------------------------------------------------------------
     status: GameStatus = GameStatus.PLAYING
@@ -195,6 +200,7 @@ class GameState:
             "auto_build_unlocked": self.auto_build_unlocked,
             "auto_build_enabled": self.auto_build_enabled,
             "auto_build_timer": self.auto_build_timer,
+            "last_season_was_winter": self.last_season_was_winter,
             "info_log": [list(e) for e in self.info_log],
             "shown_hints": list(self.shown_hints),
             "triggered_milestones": list(self.triggered_milestones),
@@ -256,6 +262,7 @@ class GameState:
             auto_build_unlocked=d.get("auto_build_unlocked", False),
             auto_build_enabled=d.get("auto_build_enabled", False),
             auto_build_timer=d.get("auto_build_timer", 0),
+            last_season_was_winter=d.get("last_season_was_winter", False),
         )
         gs.info_log = [list(e) for e in d.get("info_log", [])]
         gs.shown_hints = list(d.get("shown_hints", []))

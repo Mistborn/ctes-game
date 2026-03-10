@@ -414,6 +414,14 @@ WINTER_FOOD_PRODUCTION_MULT = 0.5
 # Maximum number of entries kept in the info log
 INFO_LOG_MAX_ENTRIES = 8
 
+# Seasonal harvest bonuses
+# Summer→Winter transition: food stockpile above threshold yields gold
+HARVEST_FOOD_THRESHOLD = 100
+HARVEST_GOLD_FRACTION = 0.10
+# Winter→Summer transition: wood stockpile above threshold yields planks
+SPRING_WOOD_THRESHOLD = 50
+SPRING_PLANKS_FRACTION = 0.05
+
 # ---------------------------------------------------------------------------
 # Tutorial hints
 # ---------------------------------------------------------------------------
