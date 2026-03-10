@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Optional
 
 from game.core import config
 from game.core.entities import (
+    ActionAcceptTrade,
     ActionAssignWorker,
     ActionBuildBuilding,
     ActionExploreHex,
@@ -232,6 +233,9 @@ def tick(state: GameState) -> GameState:
     if state.colonist_count >= 10:
         _trigger_milestone(state, "colonists_10", "10 colonists reached!")
 
+    # 7c. Trading caravan
+    _process_caravan(state)
+
     # 8. Win / Lose checks
     _check_endgame(state)
 
@@ -264,6 +268,8 @@ def apply_action(state: GameState, action) -> GameState:
         _handle_train_soldier(state)
     elif isinstance(action, ActionFightBoss):
         _handle_fight_boss(state, action)
+    elif isinstance(action, ActionAcceptTrade):
+        _handle_accept_trade(state)
 
     return state
 
@@ -1061,6 +1067,64 @@ def _trigger_milestone(state: GameState, milestone_id: str, message: str) -> Non
         return
     state.triggered_milestones.append(milestone_id)
     state.info_log.append([state.tick, message, "info"])
+    if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+        state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+
+
+# ---------------------------------------------------------------------------
+# Trading caravan
+# ---------------------------------------------------------------------------
+
+
+def _process_caravan(state: GameState) -> None:
+    """Manage the periodic trading caravan: arrival, expiry."""
+    # Check if current offer has expired
+    if state.current_trade is not None and state.tick >= state.current_trade["expires_at_tick"]:
+        state.current_trade = None
+        state.info_log.append([state.tick, "The trading caravan has departed.", "info"])
+        if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+            state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+
+    # Increment timer and check if a new caravan should arrive
+    state.caravan_timer += 1
+    if state.caravan_timer >= config.CARAVAN_INTERVAL_TICKS and state.current_trade is None:
+        state.caravan_timer = 0
+        idx = random.randrange(len(config.CARAVAN_TRADES))
+        trade = config.CARAVAN_TRADES[idx]
+        state.current_trade = {
+            "trade_index": idx,
+            "expires_at_tick": state.tick + config.CARAVAN_OFFER_DURATION_TICKS,
+        }
+        msg = (
+            f"Trading caravan arrived! Offering: {trade['name']} — "
+            f"trade {trade['give_amount']} {trade['give_resource']} "
+            f"for {trade['receive_amount']} {trade['receive_resource']}."
+        )
+        state.info_log.append([state.tick, msg, "info"])
+        if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+            state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+
+
+def _handle_accept_trade(state: GameState) -> None:
+    """Accept the current caravan trade offer."""
+    if state.current_trade is None:
+        return
+    trade = config.CARAVAN_TRADES[state.current_trade["trade_index"]]
+    give_resource = trade["give_resource"]
+    give_amount = trade["give_amount"]
+    receive_resource = trade["receive_resource"]
+    receive_amount = trade["receive_amount"]
+
+    if getattr(state, give_resource) < give_amount:
+        state.info_log.append([state.tick, "Not enough resources for this trade.", "info"])
+        if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
+            state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
+        return
+
+    setattr(state, give_resource, getattr(state, give_resource) - give_amount)
+    setattr(state, receive_resource, getattr(state, receive_resource) + receive_amount)
+    state.current_trade = None
+    state.info_log.append([state.tick, "Trade completed!", "info"])
     if len(state.info_log) > config.INFO_LOG_MAX_ENTRIES:
         state.info_log = state.info_log[-config.INFO_LOG_MAX_ENTRIES :]
 
