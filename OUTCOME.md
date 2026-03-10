@@ -1,12 +1,15 @@
 # Outcome
 
 ## Summary
-Implemented the **Pioneer Spirit** auto-explore meta upgrade (Feature D1). When unlocked (3 LP) and toggled on, the game automatically explores the cheapest adjacent unexplored hex every 20 ticks when resources allow.
+Implemented Feature D2: 'Efficient Governance' meta upgrade (3 LP). When toggled on, the engine checks every 10 ticks: if food < 10, it moves one worker from the least-critical building (market > sawmill > quarry priority) to a farm; if food > 200 and the farm has more than 2 workers, it moves one farm worker to a building with open slots.
 
 ## Changes Made
-- `game/core/config.py`: Added `AUTO_EXPLORE_INTERVAL = 20` and a new `auto_explore` entry to `UPGRADES`
-- `game/core/state.py`: Added `auto_explore_unlocked`, `auto_explore_enabled` (bools), and `auto_explore_timer` (int) fields; updated `to_dict()` and `from_dict()`
-- `game/core/engine.py`: `new_game()` sets unlocked+enabled when meta has `auto_explore`; `tick()` calls `_auto_explore()` after the auto_research block; new `_auto_explore()` helper increments timer every tick, resets at interval, finds all explorable hexes (unexplored with explored neighbor), sorts by total cost ascending, attempts to explore the cheapest if resources suffice
+- Added `AUTO_BALANCE_INTERVAL=10`, `AUTO_BALANCE_LOW_FOOD=10`, `AUTO_BALANCE_HIGH_FOOD=200`, `AUTO_BALANCE_MIN_FARM_WORKERS=2` constants to config.py
+- Added `auto_balance` entry to `config.UPGRADES` (id='auto_balance', name='Efficient Governance', lp_cost=3, requires=None)
+- Added `auto_balance_unlocked`, `auto_balance_enabled`, `auto_balance_timer` fields to `GameState` with full `to_dict`/`from_dict` support
+- Wired `auto_balance` in `engine.new_game()` following the auto_hire pattern
+- Added `_auto_balance()` call in `engine.tick()` automation block
+- Implemented `_auto_balance()` function in engine.py
 
 ## Files Modified
 - `game/core/config.py`
@@ -22,20 +25,19 @@ Implemented the **Pioneer Spirit** auto-explore meta upgrade (Feature D1). When 
 | gold_rush | 1.00 | 650 | 500.0 | 0.0 |
 
 ## Delta vs Baseline
-No change — metrics are identical to baseline. The feature only activates when the meta upgrade is unlocked, which headless strategies do not use.
+No change — all strategies retain 100% win rate and identical tick counts. The auto-balance feature is gated behind a meta upgrade (not unlocked in headless baseline runs), so baseline strategies are unaffected.
 
 ## Acceptance Criteria Results
-- ✅ `python -c "from game.core import config; assert any(u['id'] == 'auto_explore' for u in config.UPGRADES)"`
-- ✅ `python -c "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_explore_unlocked')"`
-- ✅ `python -c "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_explore_enabled')"`
-- ✅ `python -c "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_explore_unlocked' in d"`
-- ✅ Serialization roundtrip: `s.to_json() == GameState.from_json(s.to_json()).to_json()`
+- `python -c "from game.core import config; assert any(u['id'] == 'auto_balance' for u in config.UPGRADES)"` → **PASS**
+- `python -c "from game.core.engine import new_game; s = new_game(); assert hasattr(s, 'auto_balance_unlocked')"` → **PASS**
+- `python -c "from game.core.engine import new_game; import json; s = new_game(); d = json.loads(s.to_json()); assert 'auto_balance_unlocked' in d"` → **PASS**
+- Serialization roundtrip: `s.to_json() == GameState.from_json(s.to_json()).to_json()` → **PASS**
 
 ## PR URL
-https://github.com/Mistborn/ctes-game/pull/16
+https://github.com/Mistborn/ctes-game/pull/17
 
 ## Status
 success
 
 ## Notes
-None.
+Implementation follows the existing auto_hire/auto_explore patterns exactly. The `_auto_balance()` function uses a timer identical to `_auto_explore()`. Worker moves are done by updating both the colonist's `assigned_building_id` and the building's `workers_assigned` counter, consistent with `_handle_assign_worker()`.
