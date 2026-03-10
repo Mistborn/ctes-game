@@ -275,6 +275,16 @@ HEX_TERRAIN_WEIGHTS = {
     "ruins": 5,
 }
 
+# Passive income per explored hex per tick (terrain -> resource -> amount_per_tick)
+HEX_PASSIVE_INCOME = {
+    "forest": {"wood": 0.05},
+    "hills": {"stone": 0.03},
+    "mountains": {"iron": 0.01},
+    "plains": {"food": 0.03},
+    "ruins": {"gold": 0.02},
+    "swamp": {"food": 0.01, "wood": 0.01},
+}
+
 # One-time resource rewards per terrain type (resource name -> amount)
 HEX_TERRAIN_REWARDS = {
     "plains": {"food": 80},

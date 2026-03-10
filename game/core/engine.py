@@ -178,6 +178,9 @@ def tick(state: GameState) -> GameState:
     # 1. Buildings produce resources
     _process_production(state)
 
+    # 1b. Explored hex passive income
+    _process_hex_passive_income(state)
+
     # 2. Colonists consume food
     _process_consumption(state)
 
@@ -370,6 +373,34 @@ def _process_production(state: GameState) -> None:
                     fraction = state.wood / wood_needed
                     state.gold += workers * config.MARKET_GOLD_PER_WORKER_PER_TICK * market_mult * fraction
                     state.wood = 0.0
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers — hex passive income
+# ---------------------------------------------------------------------------
+
+
+def _process_hex_passive_income(state: GameState) -> None:
+    """Apply per-tick passive income from all explored hexes."""
+    if not state.hex_map_unlocked or not state.hex_tiles:
+        return
+    for tile in state.hex_tiles.values():
+        if not tile.get("explored", False):
+            continue
+        terrain = tile.get("terrain", "")
+        if terrain == "colony":
+            continue
+        for resource, amount in config.HEX_PASSIVE_INCOME.get(terrain, {}).items():
+            if resource == "food":
+                state.food += amount
+            elif resource == "wood":
+                state.wood += amount
+            elif resource == "gold":
+                state.gold += amount
+            elif resource == "stone":
+                state.stone += amount
+            elif resource == "iron":
+                state.iron += amount
 
 
 # ---------------------------------------------------------------------------
