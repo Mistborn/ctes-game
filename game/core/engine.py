@@ -78,6 +78,9 @@ def new_game(meta: Optional["MetaState"] = None) -> GameState:
         if "auto_balance" in unlocked:
             state.auto_balance_unlocked = True
             state.auto_balance_enabled = True
+        if "auto_build" in unlocked:
+            state.auto_build_unlocked = True
+            state.auto_build_enabled = True
     else:
         starting_colonists = config.STARTING_COLONISTS
 
@@ -196,6 +199,8 @@ def tick(state: GameState) -> GameState:
         _auto_explore(state)
     if state.auto_balance_enabled:
         _auto_balance(state)
+    if state.auto_build_enabled:
+        _auto_build(state)
 
     # 7. Tutorial hints
     _check_tutorial_hints(state)
@@ -550,6 +555,57 @@ def _auto_balance(state: GameState) -> None:
                     farm.workers_assigned -= 1
                     building.workers_assigned += 1
                     return
+
+
+def _auto_build(state: GameState) -> None:
+    """Every AUTO_BUILD_INTERVAL ticks, build a second copy of the most productive building
+    type when resources are AUTO_BUILD_COST_MULTIPLIER x the next build cost and there are
+    idle colonists."""
+    state.auto_build_timer += 1
+    if state.auto_build_timer < config.AUTO_BUILD_INTERVAL:
+        return
+    state.auto_build_timer = 0
+
+    if state.idle_colonists == 0:
+        return
+
+    production_rates = {
+        BuildingType.FARM: config.FARM_FOOD_PER_WORKER_PER_TICK,
+        BuildingType.LUMBER_MILL: config.LUMBERMILL_WOOD_PER_WORKER_PER_TICK,
+        BuildingType.MARKET: config.MARKET_GOLD_PER_WORKER_PER_TICK,
+        BuildingType.QUARRY: config.QUARRY_STONE_PER_WORKER_PER_TICK,
+        BuildingType.SAWMILL: config.SAWMILL_PLANKS_PER_WORKER_PER_TICK,
+        BuildingType.IRON_MINE: config.IRON_MINE_PRODUCTION,
+    }
+
+    # Compute total output per building type (sum of workers * production_rate)
+    type_outputs: dict[BuildingType, float] = {}
+    for building in state.buildings:
+        btype = building.building_type
+        rate = production_rates.get(btype)
+        if rate is None:
+            continue
+        type_outputs[btype] = type_outputs.get(btype, 0.0) + building.workers_assigned * rate
+
+    if not type_outputs:
+        return
+
+    # Find building type with highest total output
+    best_type = max(type_outputs, key=lambda bt: type_outputs[bt])
+
+    # Check if resources >= AUTO_BUILD_COST_MULTIPLIER * next build cost
+    existing = sum(1 for b in state.buildings if b.building_type == best_type)
+    multiplier = config.AUTO_BUILD_COST_MULTIPLIER
+    if best_type == BuildingType.IRON_MINE:
+        stone_cost = config.IRON_MINE_BUILD_COST.get("stone", 0) * (2**existing)
+        if state.stone < stone_cost * multiplier:
+            return
+    else:
+        wood_cost = _build_cost_for(best_type) * (2**existing)
+        if state.wood < wood_cost * multiplier:
+            return
+
+    _handle_build_building(state, ActionBuildBuilding(building_type=best_type))
 
 
 # ---------------------------------------------------------------------------
